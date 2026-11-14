@@ -165,6 +165,7 @@ struct Option {
   const char* section;
   const char* key;
   int         category; // RX_MENU_CAT_<category>
+  const char* label = nullptr; // the text when GOTHIC.DAT has no RX_MENU_TITLE_STR_<name> (the options of OpenGothic)
   };
 
 // the options shown in OpenGothic: the switches that the scripts themselves read (Menu_ReadInt),
@@ -190,6 +191,8 @@ inline constexpr Option shown[] = {
   {"BR_STAMINA_REDUCE", "BELIARS_RAGE", "RX_BeliarRage_Opt_StaminaReduce", 4},
   {"BR_DAMAGE_REDUCE", "BELIARS_RAGE", "RX_BeliarRage_Opt_AddDamageReduce", 4},
   {"BR_REGEN_ENEMIES", "BELIARS_RAGE", "RX_BeliarRage_Opt_RegenEnemies", 4},
+  // NB fix 53: not of the plugin - the light of the day also at night (graphics/sky/sky.cpp), for testing the mod
+  {"OG_NIGHT_AS_DAY", "NB_OG", "bNightAsDay", 0, "Jasna noc (do test\xF3w)"},
   };
 
 /// writes the default value of every option that is not in Gothic.ini yet (as zCOption::ReadInt does)

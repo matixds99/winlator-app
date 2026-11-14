@@ -394,6 +394,11 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **`[ctx]` – co robił gracz:** wybrana opcja dialogu (`dialog: Lares -> DIA_LARES_…`), użyty przedmiot, wpis w dzienniku, użyty obiekt (skrzynia, stół…), śmierć postaci i zabójca, otwarta notatka/książka, zapis gry. Błędy w logu mają przez to miejsce w grze.
 - **Mniej śmieci:** ta sama linia `RX_WriteLog` (np. `RX_Main_CycleTrigger {` co 2 s – ok. 600 linii na log) tylko 3 razy, potem przy 100/1000; `Mdl_Apply/RemoveOverlayMds` tylko, gdy plik się nie wczytał (było ok. 900 linii); `NB ai` tylko przy zmianie stanu lub celu potwora (było co 3 s dla każdego).
 
+### 53. Jasna noc (do testów) – 🧪 (14.11.2026)
+- **Pliki:** `common/graphics/sky/sky.cpp` (nowy w repo, w projekcie borsuczyny jest – podmienić), `common/game/nboptions.h`, `common/ui/gamemenu.cpp`
+- **Co robi:** przełącznik **„Jasna noc (do testów)”** na końcu strony „Ustawienia gry” (zapis w Gothic.ini: `[NB_OG] bNightAsDay=1`). Gdy włączony, światło słońca i niebo zostają między 8:00 a 18:00 – w nocy jest jasno jak za dnia. Czas gry płynie dalej normalnie: NPC śpią, zmieniają zajęcia, nocne zdarzenia i potwory są jak w nocy – zmienia się tylko oświetlenie. Działa od razu, bez wczytywania gry.
+- **Uwaga:** o północy słońce przeskakuje z pozycji 18:00 na 8:00 (z zachodu na wschód) – przy testach bez znaczenia.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).
