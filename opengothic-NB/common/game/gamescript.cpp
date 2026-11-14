@@ -25,6 +25,7 @@
 #include "commandline.h"
 #include "gothic.h"
 #include "game/dialogtest.h"
+#include "gamemusic.h"
 
 using namespace Tempest;
 
@@ -1491,6 +1492,103 @@ void GameScript::initCommon() {
     bindNb("BAR_SETMAXRANGE", [](int32_t bar, int32_t range) {
       if(auto b = NbBars::at(bar))
         b->maxRange = range;
+      });
+
+    // NB fix 49: the first batch of the externals that the scripts of NB call most and OpenGothic did not have.
+    // Monsters cast with it (spiders: web, ice lance, fireball, acid): the effect flies from the caster to the target
+    // and the damage (less the protection against its type, as a spell) hits the target, who reacts to it.
+    bindNb("WLD_PLAYEFFECT_VEC", [this](std::string_view fx, std::shared_ptr<zenkit::INpc> srcRef, std::shared_ptr<zenkit::INpc> dstRef,
+                                        int32_t /*level*/, int32_t damage, int32_t damageType, int32_t /*projectile*/) {
+      auto src = findNpc(srcRef);
+      auto dst = findNpc(dstRef);
+      if(src==nullptr || dst==nullptr)
+        return;
+      if(const VisualFx* vfx = Gothic::inst().loadVisualFx(fx))
+        src->startEffect(*dst,*vfx);
+      if(damage<=0 || dst->isDead())
+        return;
+      int32_t prot = 0;
+      for(int i=0; i<int(zenkit::DamageType::NUM); ++i)
+        if(damageType & (1<<i))
+          prot = std::max(prot,dst->protection(Protection(i)));
+      if(prot<0)
+        return;   // immune
+      int32_t minimal = 0;
+      if(auto* m = vm.find_symbol_by_name("NPC_MINIMAL_DAMAGE"); m!=nullptr && m->type()==zenkit::DaedalusDataType::INT && !m->is_member())
+        minimal = m->get_int();
+      dst->hurtBy(*src,std::max(damage-prot,minimal));
+      });
+    // Npc_ClearInv: as Npc_ClearInventory
+    bindNb("NPC_CLEARINV", [this](std::shared_ptr<zenkit::INpc> npcRef) {
+      npc_clearinventory(npcRef);
+      });
+    // Vob_GetDistToVob(npc, npc, "FP_..."): the distance from the character to a way point or a free point
+    bindNb("VOB_GETDISTTOVOB", [this](std::shared_ptr<zenkit::INpc> npcRef, std::shared_ptr<zenkit::INpc>, std::string_view point) -> int32_t {
+      auto npc = findNpc(npcRef);
+      auto wp  = npc!=nullptr ? world().findPoint(point,false) : nullptr;
+      if(wp==nullptr)
+        return 999999;
+      const auto d = npc->position()-wp->position();
+      return int32_t(d.length());
+      });
+    bindNb("WLD_GETTIMEHOUR", [this]() -> int32_t { return int32_t(world().time().hour());   });
+    bindNb("WLD_GETTIMEMIN",  [this]() -> int32_t { return int32_t(world().time().minute()); });
+    // Hlp_GetNpcByInstInRadius(npc, "Ghost_liker", 3500): the nearest character of this instance around the character
+    bindNb("HLP_GETNPCBYINSTINRADIUS", [this](std::shared_ptr<zenkit::INpc> npcRef, std::string_view inst, int32_t radius) -> std::shared_ptr<zenkit::INpc> {
+      auto npc = findNpc(npcRef);
+      auto* sym = vm.find_symbol_by_name(inst);
+      if(npc==nullptr || sym==nullptr)
+        return nullptr;
+      Npc*  best  = nullptr;
+      float bestD = float(radius)*float(radius);
+      const auto pos = npc->position();
+      world().detectNpc(pos,float(radius),[&](Npc& n) {
+        if(&n==npc || n.isDead() || n.handle().symbol_index()!=sym->index())
+          return;
+        const float d = (n.position()-pos).quadLength();
+        if(d<=bestD) {
+          bestD = d;
+          best  = &n;
+          }
+        });
+      return best!=nullptr ? best->handlePtr() : nullptr;
+      });
+    // Npc_GetItemById(npc, instance): the item of this instance in the inventory
+    bindNb("NPC_GETITEMBYID", [this](std::shared_ptr<zenkit::INpc> npcRef, int32_t id) -> std::shared_ptr<zenkit::IItem> {
+      auto npc = findNpc(npcRef);
+      auto itm = (npc!=nullptr && id>0) ? npc->getItem(size_t(id)) : nullptr;
+      return itm!=nullptr ? itm->handlePtr() : nullptr;
+      });
+    bindNb("HLP_INVENTORYISOPEN", []() -> int32_t { return NbBars::inventoryOpen() ? 1 : 0; });
+    bindNb("STRCMP", [](std::string_view a, std::string_view b) -> int32_t {
+      const int c = std::string(a).compare(std::string(b));
+      return c<0 ? -1 : c>0 ? 1 : 0;
+      });
+    // the music of the plugin (bosses, scenes): off / on / switched, the setting of the player stays as it is
+    bindNb("RX_MUSICOFF",    []() { GameMusic::inst().setEnabled(false); });
+    bindNb("RX_MUSICON",     []() { GameMusic::inst().setEnabled(Gothic::settingsGetI("SOUND","musicEnabled")!=0); });
+    bindNb("RX_TOGGLEMUSIC", []() { auto& m = GameMusic::inst(); m.setEnabled(!m.isEnabled()); });
+    // the items of the scripts by name, equipping, the kind of a weapon
+    bindNb("CREATEINVITEMSBYSTRING", [this](std::shared_ptr<zenkit::INpc> npcRef, std::string_view inst, int32_t count) {
+      if(auto* sym = vm.find_symbol_by_name(inst); sym!=nullptr && count>0)
+        createinvitems(npcRef,int(sym->index()),count);
+      });
+    bindNb("NPC_EQUIPITEM", [this](std::shared_ptr<zenkit::INpc> npcRef, int32_t id) {
+      if(auto npc = findNpc(npcRef); npc!=nullptr && id>0)
+        npc->equipItem(size_t(id));
+      });
+    bindNb("NPC_UNEQUIPITEM", [this](std::shared_ptr<zenkit::INpc> npcRef, std::shared_ptr<zenkit::IItem> itm) {
+      if(auto npc = findNpc(npcRef); npc!=nullptr && itm!=nullptr)
+        npc->unequipItem(itm->symbol_index());
+      });
+    bindNb("ITM_ONEHANDED", [](std::shared_ptr<zenkit::IItem> itm) -> int32_t {
+      // ITEM_SWD (1<<14) or ITEM_AXE (1<<15) of the melee weapons of one hand
+      return itm!=nullptr && (uint32_t(itm->flags) & ((1u<<14)|(1u<<15)))!=0 ? 1 : 0;
+      });
+    bindNb("NPC_CANSEENPC2", [this](std::shared_ptr<zenkit::INpc> aRef, std::shared_ptr<zenkit::INpc> bRef, int32_t freeLos) -> int32_t {
+      auto a = findNpc(aRef);
+      auto b = findNpc(bRef);
+      return a!=nullptr && b!=nullptr && a->canSeeNpc(*b,freeLos!=0) ? 1 : 0;
       });
 
     {

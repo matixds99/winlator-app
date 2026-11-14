@@ -1328,6 +1328,7 @@ uint64_t MainWindow::tick() {
   if(errorScreen.isActive())
     clearInput();
   Scripting::game::tick();
+  NbBars::inventoryOpen() = inventory.isActive();   // NB fix 49: Hlp_InventoryIsOpen
   if(auto* w = Gothic::inst().world()) {
     // a script (CoM, fistfight) closes the inventory of the player
     if(w->script().dmaTakeInventoryClose() && inventory.isActive())

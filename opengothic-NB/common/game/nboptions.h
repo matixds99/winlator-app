@@ -24,6 +24,17 @@ inline constexpr Default defaults[] = {
   // NB fix 44: read by the plugin outside of its menu (zCOption::ReadInt with the default 1, 0x10280A31); without it
   // RX_ApplyAni_1H_DexSword gives the weapons of dexterity (sabres) the animations of the usual swords
   {"AST", "IsEnabledDexSwordAnims", 1},
+  // NB fix 49: read by the scripts, written by the plugin with these defaults (zCOption::ReadInt) - the difficulty of
+  // a new game, chosen in a window of the plugin that OpenGothic does not have. Without them: 0 learning points for
+  // a level (bOptionLP), monsters with 25% of the life (bOptionMonsterHealth 0)...
+  {"AST", "bOptionLP", 10},
+  {"AST", "bOptionHealth", 3},
+  {"AST", "bOptionMonsterExp", 2},
+  {"AST", "bOptionMonsterHealth", 3},
+  {"AST", "bOptionMonsterPower", 2},
+  {"AST", "bOptionMonsterProt", 2},
+  {"AST", "FULLSNC_MENU_OPTION", 19},
+  {"AST", "bToggleQuickLootMessage", 1},
   {"AST", "bToggleDamageAboveHead", 1},
   {"AST", "bToggleDamageShow", 0},
   {"AST", "bToggleShieldBlockShow", 1},

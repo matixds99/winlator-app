@@ -29,4 +29,10 @@ namespace NbBars {
   inline void reset() {
     all() = {};
     }
+
+  /// NB fix 49: the inventory of the player is open (the window sets it every frame, Hlp_InventoryIsOpen reads it)
+  inline bool& inventoryOpen() {
+    static bool open = false;
+    return open;
+    }
   }
