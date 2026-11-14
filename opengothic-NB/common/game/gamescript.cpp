@@ -128,6 +128,8 @@ struct NbState {
   int                      unionCycle      = 0;
   uint64_t                 nextMenuCheck   = 0;
   uint64_t                 nextMoveset     = 0;   // the timer of 100 ms of fix 30
+  std::vector<std::weak_ptr<zenkit::INpc>> regen;  // RX_RestoreNpcHealthSlow (NB fix 50)
+  uint64_t                 nextRegen       = 0;
   };
 
 std::unordered_map<const GameScript*, NbState> nbStates;
@@ -1560,14 +1562,66 @@ void GameScript::initCommon() {
       return itm!=nullptr ? itm->handlePtr() : nullptr;
       });
     bindNb("HLP_INVENTORYISOPEN", []() -> int32_t { return NbBars::inventoryOpen() ? 1 : 0; });
+    // StrCmp of the plugin is TRUE when the strings are the same, without the case: !StrCmp("WALk", GetWalkModeString(self))
+    // -> AI_SetWalkMode(self, NPC_WALK) (NB fix 50: the first version returned 0 for equal strings, like C)
     bindNb("STRCMP", [](std::string_view a, std::string_view b) -> int32_t {
-      const int c = std::string(a).compare(std::string(b));
-      return c<0 ? -1 : c>0 ? 1 : 0;
+      if(a.size()!=b.size())
+        return 0;
+      for(size_t i=0; i<a.size(); ++i)
+        if(std::toupper(static_cast<unsigned char>(a[i]))!=std::toupper(static_cast<unsigned char>(b[i])))
+          return 0;
+      return 1;
       });
     // the music of the plugin (bosses, scenes): off / on / switched, the setting of the player stays as it is
     bindNb("RX_MUSICOFF",    []() { GameMusic::inst().setEnabled(false); });
     bindNb("RX_MUSICON",     []() { GameMusic::inst().setEnabled(Gothic::settingsGetI("SOUND","musicEnabled")!=0); });
     bindNb("RX_TOGGLEMUSIC", []() { auto& m = GameMusic::inst(); m.setEnabled(!m.isEnabled()); });
+    // NB fix 50 (from log.txt): the walk mode as text, the state of the hero, the regeneration of an NPC left behind
+    bindNb("GETWALKMODESTRING", [this](std::shared_ptr<zenkit::INpc> npcRef) -> std::string {
+      auto npc = findNpc(npcRef);
+      if(npc==nullptr)
+        return "";
+      const auto wm = npc->walkMode();
+      if((wm & WalkBit::WM_Dive)!=WalkBit::WM_Run)  return "DIVE";
+      if((wm & WalkBit::WM_Swim)!=WalkBit::WM_Run)  return "SWIM";
+      if((wm & WalkBit::WM_Sneak)!=WalkBit::WM_Run) return "SNEAK";
+      if((wm & WalkBit::WM_Walk)!=WalkBit::WM_Run)  return "WALK";
+      return "RUN";
+      });
+    // HERO_NORMAL 0, HERO_THREATENED 1, HERO_FIGHTING 2: as the music of the fight - someone has the hero as the target
+    bindNb("HLP_GETHEROSTATUS", [this]() -> int32_t {
+      auto pl = world().player();
+      if(pl==nullptr || !world().isTargeted(*pl))
+        return 0;
+      return pl->weaponState()==WeaponState::NoWeapon ? 1 : 2;
+      });
+    // ZS_Attack: the hero ran away (more than 2000) - the NPC puts the weapon away and gets the life back slowly;
+    // B_MM_AssessDamage stops it. Here: 2% of the maximum every second, see NbState::regen in the tick.
+    bindNb("RX_RESTORENPCHEALTHSLOW", [this](std::shared_ptr<zenkit::INpc> npcRef) {
+      if(npcRef==nullptr)
+        return;
+      auto& r = nbStates[this].regen;
+      for(auto& w:r)
+        if(w.lock()==npcRef)
+          return;
+      r.push_back(npcRef);
+      });
+    bindNb("RX_RESTORENPCHEALTHSTOP", [this](std::shared_ptr<zenkit::INpc> npcRef) {
+      auto& r = nbStates[this].regen;
+      r.erase(std::remove_if(r.begin(),r.end(),[&](const std::weak_ptr<zenkit::INpc>& w) {
+        auto p = w.lock();
+        return p==nullptr || p==npcRef;
+        }),r.end());
+      });
+    // the features of other versions of the mod (Legacy, the multiplayer, the road of trials...) - off, and quiet in the log
+    bindNb("ISNEWLEGFEATURES",        []() -> int32_t { return 0; });
+    bindNb("RX_ISLEGAST",             []() -> int32_t { return 0; });
+    bindNb("RX_ISMULTACTIVE",         []() -> int32_t { return 0; });
+    bindNb("RX_ROADOFTRIALSACTIVE",   []() -> int32_t { return 0; });
+    bindNb("RX_ISHEROINSIDEOTHERNPC", []() -> int32_t { return 0; });
+    bindNb("RX_MULT_SETPARTYNPC",     [](std::shared_ptr<zenkit::INpc>) {});
+    bindNb("MDL_SETHEROANIFPS",       [](std::shared_ptr<zenkit::INpc>, std::string_view, float) {});
+    bindNb("INFOSTATADD",             [](std::shared_ptr<zenkit::INpc>, int32_t, int32_t) {});
     // the items of the scripts by name, equipping, the kind of a weapon
     bindNb("CREATEINVITEMSBYSTRING", [this](std::shared_ptr<zenkit::INpc> npcRef, std::string_view inst, int32_t count) {
       if(auto* sym = vm.find_symbol_by_name(inst); sym!=nullptr && count>0)
@@ -3177,6 +3231,23 @@ void GameScript::tick(uint64_t dt) {
       if(changed)
         st.nextMenuCheck = 0;   // B_CheckMenuOption at the next frame
       }
+    }
+
+  // NB fix 50: the NPCs that regenerate (RX_RestoreNpcHealthSlow): 2% of the maximum every second, until full
+  if(!st.regen.empty() && tickCount()>=st.nextRegen) {
+    st.nextRegen = tickCount()+1000;
+    st.regen.erase(std::remove_if(st.regen.begin(),st.regen.end(),[this](const std::weak_ptr<zenkit::INpc>& w) {
+      auto p   = w.lock();
+      auto npc = p!=nullptr ? findNpc(p) : nullptr;
+      if(npc==nullptr || npc->isDead() || npc->isDown())
+        return true;
+      const int32_t hp  = npc->attribute(ATR_HITPOINTS);
+      const int32_t max = npc->attribute(ATR_HITPOINTSMAX);
+      if(hp>=max)
+        return true;
+      npc->changeAttribute(ATR_HITPOINTS,std::min(max-hp,std::max(1,max/50)),false);
+      return false;
+      }),st.regen.end());
     }
 
   // the timer of 1000 ms of the plugin: RX_Main_CycleTrigger, the next second b_gettime

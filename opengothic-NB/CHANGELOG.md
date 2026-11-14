@@ -368,6 +368,16 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - `Npc_ClearInv` (40 wywołań), `Vob_GetDistToVob` (odległość do punktu `FP_…`/`WP_…`, 164), `Wld_GetTimeHour/Min`, `Hlp_GetNpcByInstInRadius`, `Npc_GetItemById`, `Hlp_InventoryIsOpen` (np. pasek wytrzymałości znika przy otwartym ekwipunku), `StrCmp`, `RX_MusicOn/Off/ToggleMusic`, `CreateInvItemsByString`, `Npc_EquipItem`, `Npc_UnequipItem`, `Itm_OneHanded`, `Npc_CanSeeNpc2`.
 - **Ukryte opcje pluginu** (czytane przez skrypty, plugin zapisuje je z domyślną wartością, a w OpenGothic były 0): poziom trudności nowej gry – `bOptionLP` 10 (punkty nauki za poziom!), `bOptionHealth` 3, `bOptionMonsterExp` 2, `bOptionMonsterHealth` 3 (0 = potwory z 25% życia), `bOptionMonsterPower` 2, `bOptionMonsterProt` 2, oraz `FULLSNC_MENU_OPTION` 19, `bToggleQuickLootMessage` 1. Dopisywane do Gothic.ini tylko, gdy ich tam nie ma.
 
+### 50. Paczka 2: brakujące funkcje z log.txt – 🧪 (14.11.2026)
+- **Pliki:** `common/game/gamescript.cpp`
+- **Z logu (`not implemented call`):**
+  - `StrCmp` – poprawione: w NB zwraca TRUE dla takich samych napisów (bez wielkości liter), a nie 0 jak w C – np. `!StrCmp("WALk", GetWalkModeString(self))` → potwór przechodzi na chód (w paczce 1 było odwrotnie);
+  - `GetWalkModeString` – „WALK”/„RUN”/„SNEAK”/„SWIM”/„DIVE” (potwory zauważają skradającego się bohatera, przełączają chód/bieg);
+  - `Hlp_GetHeroStatus` – 0 spokój, 1 zagrożenie (ktoś celuje w bohatera, broń schowana), 2 walka (jak muzyka walki);
+  - `RX_RestoreNpcHealthSlow/Stop` – gdy bohater ucieknie (ponad 2000), NPC chowa broń i odzyskuje życie: 2% maksimum na sekundę, aż do pełna albo do kolejnego trafienia (wcześniej można było go „ubić na raty”);
+  - wyciszone (zawsze 0 / bez działania, jak w tej wersji moda): `IsNewLegFeatures`, `RX_IsLegAst`, `RX_IsMultActive`, `RX_RoadOfTrialsActive`, `RX_IsHeroInsideOtherNpc`, `RX_Mult_SetPartyNpc`, `Mdl_SetHeroAniFps`, `InfoStatAdd`.
+- **Bez zmian (domyślne 0 jest bezpieczne albo czeka):** `RX_CanReattack` (zmiana celu po trafieniach od nie-wroga), `RX_IsNpcIgnoreTarget`, `RX_NpcIsStrafing`, `RX_IsWaiting`, `RX_ContainsRoutine`, `RX_CallOnDead`, `RX_ResetSummons`, `RX_SetDialogNpc`, `RX_RemoveItemsOnNpcBeat`; `Ext_PutInSlot` / `Ext_RemoveFromSlot` / `ActivateZSSlot` / `Hlp_HasInSlot` – mieszek i torba (odłożone); `Wld_IsRaining` – OpenGothic nie ma deszczu.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).
