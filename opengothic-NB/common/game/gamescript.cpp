@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <map>
 #include <type_traits>
 #include <unordered_map>
 
@@ -130,7 +131,106 @@ struct NbState {
   uint64_t                 nextMoveset     = 0;   // the timer of 100 ms of fix 30
   std::vector<std::weak_ptr<zenkit::INpc>> regen;  // RX_RestoreNpcHealthSlow (NB fix 50)
   uint64_t                 nextRegen       = 0;
+  // NB fix 52: the log of the missing externals - from where, with what, how many times
+  struct Missing {
+    uint64_t    count = 0;
+    std::string from;
+    std::string args;
+    };
+  std::map<std::string,Missing,std::less<>>   missing;
+  uint64_t                                    missingTotal    = 0;
+  uint64_t                                    missingReported = 0;
+  uint64_t                                    nextMissingLog  = 0;
+  std::vector<std::pair<uint32_t,uint32_t>>   fnAddr;    // the code of the functions: address, symbol (sorted)
+  std::unordered_map<std::string,uint32_t>    writeLogSeen; // RX_WriteLog: the same line, not without end
   };
+
+// "[ctx]" in the log: what the player did, so the errors around it have a place in the game (NB fix 52)
+template<class... Args>
+void nbCtx(const Args&... args) {
+  Log::i("[ctx] ",args...);
+  }
+
+/// the function of the script with the code at the address pc (for the log)
+std::string nbFunctionAt(zenkit::DaedalusVm& vm, NbState& st, uint32_t pc) {
+  if(st.fnAddr.empty()) {
+    for(uint32_t i=0; i<vm.symbols().size(); ++i) {
+      auto* s = vm.find_symbol_by_index(i);
+      if(s==nullptr || s->is_external() || s->is_member() || !s->is_const())
+        continue;
+      const auto t = s->type();
+      if(t==zenkit::DaedalusDataType::FUNCTION || t==zenkit::DaedalusDataType::INSTANCE || t==zenkit::DaedalusDataType::PROTOTYPE)
+        st.fnAddr.emplace_back(s->address(),i);
+      }
+    std::sort(st.fnAddr.begin(),st.fnAddr.end());
+    }
+  auto it = std::upper_bound(st.fnAddr.begin(),st.fnAddr.end(),std::make_pair(pc,uint32_t(-1)));
+  if(it==st.fnAddr.begin())
+    return "?";
+  --it;
+  auto* s = vm.find_symbol_by_index(it->second);
+  return s!=nullptr ? s->name() : "?";
+  }
+
+/// a text of the plugin for the screen: "\n" of the scripts is a new line, the tags [POS=..] [COL=..] [/] [RED]... go away
+std::string nbPlainText(std::string_view in) {
+  std::string out;
+  out.reserve(in.size());
+  for(size_t i=0; i<in.size(); ++i) {
+    if(in[i]=='\\' && i+1<in.size() && (in[i+1]=='n' || in[i+1]=='N')) {
+      out += '\n';
+      ++i;
+      continue;
+      }
+    if(in[i]=='[') {
+      const size_t e = in.find(']',i);
+      if(e!=std::string_view::npos && e-i<=24) {
+        const auto tag = in.substr(i+1,e-i-1);
+        if(tag=="/" || tag.rfind("POS=",0)==0 || tag.rfind("COL=",0)==0 ||
+           tag=="RED" || tag=="YELLOW" || tag=="GREEN" || tag=="WHITE" || tag=="BLUE") {
+          i = e;
+          continue;
+          }
+        }
+      }
+    out += in[i];
+    }
+  return out;
+  }
+
+/// an external the scripts call and nobody implements: the first call with the place and the arguments
+void nbMissingCall(NbState& st, zenkit::DaedalusVm& vm, std::string_view name, std::string args) {
+  ++st.missingTotal;
+  auto it = st.missing.find(name);
+  if(it!=st.missing.end()) {
+    ++it->second.count;
+    return;
+    }
+  NbState::Missing m;
+  m.count = 1;
+  m.from  = nbFunctionAt(vm,st,vm.pc());
+  m.args  = std::move(args);
+  Log::e("not implemented call [",name,"] from ",m.from," (",m.args,")");
+  st.missing.emplace(std::string(name),std::move(m));
+  }
+
+/// how many times every missing external was called: the most used first
+void nbMissingReport(NbState& st, const char* why) {
+  if(st.missingTotal==st.missingReported)
+    return;
+  st.missingReported = st.missingTotal;
+  std::vector<std::pair<uint64_t,const std::string*>> v;
+  for(auto& [n,m]:st.missing)
+    v.emplace_back(m.count,&n);
+  std::sort(v.begin(),v.end(),[](const auto& a, const auto& b) { return a.first>b.first; });
+  std::string line;
+  for(size_t i=0; i<v.size() && i<25; ++i) {
+    line += *v[i].second + " x" + std::to_string(v[i].first);
+    if(i+1<v.size() && i+1<25)
+      line += ", ";
+    }
+  Log::i("NB missing (",why,"): ",int(st.missing.size())," functions, ",int(st.missingTotal)," calls: ",line);
+  }
 
 std::unordered_map<const GameScript*, NbState> nbStates;
 
@@ -872,6 +972,51 @@ void GameScript::initCommon() {
     nbState.checkMenu = nbFunc("B_CHECKMENUOPTION");
     if(auto* ft = vm.find_symbol_by_name("RX_FRAMETIME"); ft!=nullptr && ft->type()==zenkit::DaedalusDataType::INT && !ft->is_member())
       nbState.frameTime = ft;
+    // NB fix 52: a missing external goes to the log with the function of the script that calls it and the
+    // arguments of the first call; the numbers of the calls come every 5 minutes and at the save ("NB missing")
+    vm.register_default_external_custom([this](zenkit::DaedalusVm& v, zenkit::DaedalusSymbol& sym) {
+      auto params = v.find_parameters_for_function(&sym);
+      std::string args;
+      for(size_t i=params.size(); i>0; --i) {
+        std::string a;
+        try {
+          switch(params[i-1].type()) {
+            case zenkit::DaedalusDataType::INT:
+              a = std::to_string(v.pop_int());
+              break;
+            case zenkit::DaedalusDataType::FLOAT:
+              a = std::to_string(v.pop_float());
+              break;
+            case zenkit::DaedalusDataType::STRING:
+              a = "\"" + std::string(v.pop_string()) + "\"";
+              break;
+            case zenkit::DaedalusDataType::INSTANCE: {
+              auto inst = v.pop_instance();
+              auto* is  = inst!=nullptr ? v.find_symbol_by_instance(*inst) : nullptr;
+              a = is!=nullptr ? is->name() : "NULL";
+              break;
+              }
+            default:
+              break;
+            }
+          }
+        catch(...) {
+          a = "?";
+          }
+        args = args.empty() ? a : a + ", " + args;
+        }
+      if(sym.has_return()) {
+        if(sym.rtype()==zenkit::DaedalusDataType::FLOAT)
+          v.push_float(0.f); else
+        if(sym.rtype()==zenkit::DaedalusDataType::INT)
+          v.push_int(0); else
+        if(sym.rtype()==zenkit::DaedalusDataType::STRING)
+          v.push_string(""); else
+        if(sym.rtype()==zenkit::DaedalusDataType::INSTANCE)
+          v.push_instance(nullptr);
+        }
+      nbMissingCall(nbStates[this],v,sym.name(),std::move(args));
+      });
     std::vector<std::string> nbBound;
     // registers only a declared external whose signature in GOTHIC.DAT is the one of the callback
     const auto bindNb = [this,&nbBound](std::string_view name, auto callback) {
@@ -1225,7 +1370,17 @@ void GameScript::initCommon() {
       });
 
     // the log, the profiler and the brackets of the code of NB
-    bindNb("RX_WRITELOG",            [](std::string_view msg) { Log::d("NB: ",msg); });
+    // the same line of RX_WriteLog (e.g. "RX_Main_CycleTrigger {" every 2 seconds) only 3 times, then at 100, 1000...
+    bindNb("RX_WRITELOG",            [this](std::string_view msg) {
+      auto& seen = nbStates[this].writeLogSeen;
+      if(seen.size()>5000)
+        seen.clear();
+      const uint32_t n = ++seen[std::string(msg)];
+      if(n<=3)
+        Log::d("NB: ",msg); else
+      if(n==100 || n==1000 || n==10000)
+        Log::d("NB: ",msg," (x",int(n)," so far)");
+      });
     bindNb("RX_PRINTDEBUGINFOFUNC",  [](std::string_view)     {});
     bindNb("RX_PRINTPERF",           [](std::string_view, int32_t) {});
     bindNb("RX_PRINTP",              [](std::string_view msg) { Gothic::inst().onPrint(std::string(msg).c_str()); });
@@ -1622,6 +1777,115 @@ void GameScript::initCommon() {
     bindNb("RX_MULT_SETPARTYNPC",     [](std::shared_ptr<zenkit::INpc>) {});
     bindNb("MDL_SETHEROANIFPS",       [](std::shared_ptr<zenkit::INpc>, std::string_view, float) {});
     bindNb("INFOSTATADD",             [](std::shared_ptr<zenkit::INpc>, int32_t, int32_t) {});
+    // NB fix 51: the notes and the books of the plugin. The scripts put the text and the texture in global variables
+    // (RX_SetNoteType, RX_SetBookType) and open the window: here a document of OpenGothic with the texture of NB
+    const auto nbStr = [this](std::string_view name) -> std::string {
+      auto* s = vm.find_symbol_by_name(name);
+      return s!=nullptr && s->type()==zenkit::DaedalusDataType::STRING ? std::string(s->get_string()) : std::string();
+      };
+    const auto nbInt = [this](std::string_view name) -> int32_t {
+      auto* s = vm.find_symbol_by_name(name);
+      return s!=nullptr && s->type()==zenkit::DaedalusDataType::INT ? s->get_int() : 0;
+      };
+    bindNb("RX_OPENNOTE", [nbStr,nbInt]() {
+      DocumentMenu::Show doc;
+      doc.nb.img  = nbStr("RX_SCROLLTEXTTEXTURE");
+      doc.nb.text = nbPlainText(nbStr("RX_SCROLLTEXT"));
+      doc.nb.w    = float(std::clamp(nbInt("RX_SCROLLSIZEX"),5,100))/100.f;
+      doc.nb.h    = float(std::clamp(nbInt("RX_SCROLLSIZEY"),5,100))/100.f;
+      // the plugin has no place of the text for the notes: the middle of the sheet
+      doc.nb.columns.push_back({0.14f,0.11f,0.86f,0.89f});
+      if(doc.nb.img.empty())
+        return;
+      nbCtx("note: ",doc.nb.img);
+      Gothic::inst().onShowDocument(doc);
+      });
+    const auto nbBook = [nbStr,nbInt](int32_t sizeX, int32_t sizeY) {
+      DocumentMenu::Show doc;
+      sizeX = std::clamp(sizeX,5,100);
+      sizeY = std::clamp(sizeY,5,100);
+      doc.nb.img  = nbStr("RX_BOOKMANAGERTEXTURE");
+      doc.nb.text = nbPlainText(nbStr("RX_BOOKMANAGERTEXT"));
+      doc.nb.w    = float(sizeX)/100.f;
+      doc.nb.h    = float(sizeY)/100.f;
+      // the places of the pages are in the virtual units of the screen (8192), from the corner of the book
+      const float vw = 8192.f*float(sizeX)/100.f;
+      const float vh = 8192.f*float(sizeY)/100.f;
+      const float lx0 = float(nbInt("RX_BOOKMANAGER_LP_STARTX"));
+      const float lx1 = float(nbInt("RX_BOOKMANAGER_LP_ENDX"));
+      const float ly0 = float(nbInt("RX_BOOKMANAGER_LP_STARTY"));
+      const float ly1 = float(nbInt("RX_BOOKMANAGER_LP_ENDY"));
+      const float rx0 = float(nbInt("RX_BOOKMANAGER_RP_STARTX"));
+      if(lx1>lx0 && ly1>ly0 && rx0>=lx1) {
+        doc.nb.columns.push_back({lx0/vw,ly0/vh,lx1/vw,ly1/vh});
+        doc.nb.columns.push_back({rx0/vw,ly0/vh,(rx0+lx1-lx0)/vw,ly1/vh});
+        } else {
+        doc.nb.columns.push_back({0.08f,0.12f,0.46f,0.88f});
+        doc.nb.columns.push_back({0.54f,0.12f,0.92f,0.88f});
+        }
+      if(doc.nb.img.empty())
+        return;
+      nbCtx("book: ",doc.nb.img);
+      Gothic::inst().onShowDocument(doc);
+      };
+    bindNb("RX_TOGGLEBOOKMANAGERWITHSIZE", [nbBook](int32_t sizeX, int32_t sizeY) { nbBook(sizeX,sizeY); });
+    bindNb("RX_TOGGLEBOOKMANAGER",         [nbBook]() { nbBook(80,68); });
+    // NB fix 51: the death of a character - the function of the death of its instance (AI_OnDead_<instance>, 310 of them
+    // in the scripts: the quests, the bosses) and AI_OnDead_Common, as UNION_ABI.DLL 0x100511F0 does it.
+    // The bit 0x400 of the variable 71 of NB (BIT_KILL_FUNC): the function of the instance ran already.
+    bindNb("RX_CALLONDEAD", [this](std::shared_ptr<zenkit::INpc> otherRef, std::shared_ptr<zenkit::INpc> selfRef) {
+      auto* self = findNpcRaw(selfRef);
+      if(self==nullptr || self->attribute(ATR_HITPOINTS)>0)
+        return;
+      const int32_t flags = self->newBalanceGetNpcVar(71);
+      if((flags & 0x400)!=0)
+        return;
+      auto call = [this](zenkit::DaedalusSymbol* fn) {
+        if(fn==nullptr || fn->type()!=zenkit::DaedalusDataType::FUNCTION)
+          return false;
+        try {
+          if(fn->has_return())
+            (void)vm.call_function<int>(fn); else
+            vm.call_function<void>(fn);
+          }
+        catch(const std::exception& e) {
+          Log::e("NB: ",fn->name()," failed: ",e.what());
+          }
+        return true;
+        };
+      ScopeVar sv(*vm.global_self(), selfRef);
+      ScopeVar ov(*vm.global_other(), otherRef);
+      if(self->newBalanceGetNpcVar(158)!=0) {
+        self->newBalanceSetNpcVar(122,0);
+        call(vm.find_symbol_by_name("RX_AST_REMOVETRADEGOODS"));
+        }
+      auto* inst = vm.find_symbol_by_index(selfRef->symbol_index());
+      auto* own  = inst!=nullptr ? vm.find_symbol_by_name("AI_ONDEAD_"+inst->name()) : nullptr;
+      if(call(own))
+        self->newBalanceSetNpcVar(71,self->newBalanceGetNpcVar(71) | 0x400);
+      call(vm.find_symbol_by_name("AI_ONDEAD_COMMON"));
+      auto* killer = findNpcRaw(otherRef);
+      nbCtx("death: ",self->displayName(),(own!=nullptr ? " (" : ""),(own!=nullptr ? own->name() : std::string()),
+            (own!=nullptr ? ")" : "")," killer: ",(killer!=nullptr ? killer->displayName() : std::string_view("-")));
+      });
+    // NB fix 51: an information (a dialog) that goes to another NPC (UNION_ABI.DLL 0x1017A3E0: oCInfo::npc = the instance);
+    // ZS_Talk gives so the dialogs of the poker, Xardas the mask of the sleeper...
+    bindNb("RX_SETDIALOGNPC", [this](std::shared_ptr<zenkit::INpc> npcRef, std::string_view infoName) {
+      auto* sym = vm.find_symbol_by_name(infoName);
+      if(npcRef==nullptr || sym==nullptr)
+        return;
+      for(auto& info:dialogsInfo)
+        if(info!=nullptr && info->symbol_index()==sym->index())
+          info->npc = int32_t(npcRef->symbol_index());
+      });
+    // a weapon of dexterity (rapier, sabre): the bit BIT_ITEM_DEX_SWORD (1<<26) of C_Item.hp, see SetItemVarTrue
+    bindNb("HLP_ISDEXSWORD", [](std::shared_ptr<zenkit::IItem> itm) -> int32_t {
+      return itm!=nullptr && ((uint32_t(itm->hp)>>26) & 1u)!=0 ? 1 : 0;
+      });
+    bindNb("GAME_PLAY3DSOUND", [this](std::shared_ptr<zenkit::INpc> npcRef, std::string_view file) { snd_play3d(npcRef,file); });
+    // the plugin refreshes the texts of its window of the inventory; the summons of the multiplayer
+    bindNb("UPDATEITEMSINFOININV", []() {});
+    bindNb("RX_ISREMOTESUMMON",    [](std::shared_ptr<zenkit::INpc>) -> int32_t { return 0; });
     // the items of the scripts by name, equipping, the kind of a weapon
     bindNb("CREATEINVITEMSBYSTRING", [this](std::shared_ptr<zenkit::INpc> npcRef, std::string_view inst, int32_t count) {
       if(auto* sym = vm.find_symbol_by_name(inst); sym!=nullptr && count>0)
@@ -2098,6 +2362,10 @@ void GameScript::initializeInstanceItem(const std::shared_ptr<zenkit::IItem>& it
   }
 
 void GameScript::saveQuests(Serialize &fout) {
+  if(auto it = nbStates.find(this); it!=nbStates.end()) {
+    nbCtx("save of the game");
+    nbMissingReport(it->second,"save");
+    }
   quests.save(fout);
   fout.write(uint32_t(dlgKnownInfos.size()));
   for(auto& i:dlgKnownInfos)
@@ -2556,6 +2824,8 @@ void GameScript::exec(const GameScript::DlgChoice &dlg, Npc& player, Npc& npc) {
       }
     }
 
+  if(auto* fn = vm.find_symbol_by_index(dlg.scriptFn); fn!=nullptr && nbStates.count(this))
+    nbCtx("dialog: ",npc.displayName()," -> ",fn->name());
   vm.call_function(vm.find_symbol_by_index(dlg.scriptFn));
   }
 
@@ -2712,6 +2982,8 @@ void GameScript::invokeItem(Npc *npc, ScriptFn fn, Item* itm) {
   if (functionSymbol == nullptr)
     return;
 
+  if(npc->isPlayer() && nbStates.count(this))
+    nbCtx("item of the hero: ",functionSymbol->name(),itm!=nullptr ? " (" : "",itm!=nullptr ? itm->displayName() : "",itm!=nullptr ? ")" : "");
   ScopeVar self(*vm.global_self(), npc->handlePtr());
   if(itm!=nullptr) {
     ScopeVar item(*vm.global_item(), itm->handlePtr());
@@ -3003,6 +3275,8 @@ void GameScript::useInteractive(const std::shared_ptr<zenkit::INpc>& hnpc, std::
   if(fn == nullptr)
     return;
 
+  if(auto* n = findNpc(hnpc); n!=nullptr && n->isPlayer() && nbStates.count(this))
+    nbCtx("object: ",func);
   ScopeVar self(*vm.global_self(),hnpc);
   try {
     vm.call_function<void>(fn);
@@ -3256,6 +3530,13 @@ void GameScript::tick(uint64_t dt) {
   if(currentSecond==st.lastCycleSecond)
     return;
   st.lastCycleSecond = currentSecond;
+  if(st.nextMissingLog>currentSecond+300)
+    st.nextMissingLog = 0;   // a loaded save has another time
+  if(currentSecond>=st.nextMissingLog) {
+    if(st.nextMissingLog!=0)
+      nbMissingReport(st,"5 min");
+    st.nextMissingLog = currentSecond+300;
+    }
   ++st.unionCycle;
   if(st.unionCycle==1) {
     callNb(st.cycle);
@@ -3727,7 +4008,8 @@ void GameScript::mdl_applyoverlaymds(std::shared_ptr<zenkit::INpc> npcRef, std::
   if(npc!=nullptr) {
     auto skelet = Resources::loadSkeleton(overlayname);
     npc->addOverlay(skelet,0);
-    Log::d("Mdl_ApplyOverlayMds: ", overlayname, skelet==nullptr ? " (not found)" : "");
+    if(skelet==nullptr)
+      Log::d("Mdl_ApplyOverlayMds: ", overlayname, " (not found)");   // NB fix 52: only what does not load
     // NB diagnostics (fix 47): an overlay of the hero that does not load leaves him the animations of the base
     if(npc->isPlayer())
       Log::i("[anim] hero overlay +",overlayname,skelet==nullptr ? " NOT LOADED" : "");
@@ -3747,7 +4029,8 @@ void GameScript::mdl_removeoverlaymds(std::shared_ptr<zenkit::INpc> npcRef, std:
   if(npc!=nullptr) {
     auto skelet = Resources::loadSkeleton(overlayname);
     npc->delOverlay(skelet);
-    Log::d("Mdl_RemoveOverlayMds: ", overlayname, skelet==nullptr ? " (not found)" : "");
+    if(skelet==nullptr)
+      Log::d("Mdl_RemoveOverlayMds: ", overlayname, " (not found)");
   }
 }
 
@@ -5199,6 +5482,8 @@ void GameScript::logMoveToTop(std::string_view topic) {
   }
 
 void GameScript::log_addentry(std::string_view topicName, std::string_view entry) {
+  if(nbStates.count(this))
+    nbCtx("journal: ",topicName," | ",entry.substr(0,100));
   quests.addEntry(topicName,entry);
   }
 

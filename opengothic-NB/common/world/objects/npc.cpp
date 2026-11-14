@@ -33,7 +33,7 @@
 using namespace Tempest;
 
 /// Returning NB: why a monster near the hero does not react (the state, the queue, the perceptions, the attitude).
-/// "NB ai" in the log, once in 3 seconds for each character. false, once the AI works.
+/// "NB ai" in the log, when the state or the target of the character changes (NB fix 52). false, once the AI works.
 static constexpr bool  NB_AI_TRACE      = true;
 static constexpr float NB_AI_TRACE_DIST = 2500.f;
 
@@ -45,6 +45,17 @@ static bool nbAiTraceDue(const void* npc, uint64_t now) {
   if(now<t)
     return false;
   t = now+3000;
+  return true;
+  }
+
+static bool nbAiTraceChanged(const void* npc, std::string key) {
+  static std::unordered_map<const void*,std::string> last;
+  if(last.size()>4096)
+    last.clear();
+  auto& l = last[npc];
+  if(l==key)
+    return false;
+  l = std::move(key);
   return true;
   }
 
@@ -5175,11 +5186,13 @@ bool Npc::perceptionProcess(Npc &pl) {
 
   const float quadDist = pl.qDistTo(*this);
   if(NB_AI_TRACE && pl.isPlayer() && !isHuman() && !isDown() && quadDist<NB_AI_TRACE_DIST*NB_AI_TRACE_DIST &&
-     owner.script().findSymbol("RX_ISSPACETNET")!=nullptr && nbAiTraceDue(this,owner.tickCount())) {
-    auto* st    = owner.script().findSymbol(aiState.funcIni.ptr);
-    float range = float(world().script().percRanges().at(PERC_ASSESSENEMY, hnpc->senses_range));
+     owner.script().findSymbol("RX_ISSPACETNET")!=nullptr) {
+    auto*       st     = owner.script().findSymbol(aiState.funcIni.ptr);
+    const char* stName = (aiState.funcIni.isValid() && st!=nullptr ? st->name().c_str() : "<none>");
+    float       range  = float(world().script().percRanges().at(PERC_ASSESSENEMY, hnpc->senses_range));
+    if(nbAiTraceChanged(this,std::string(stName)+"|"+(currentTarget!=nullptr ? std::string(currentTarget->displayName()) : "-")))
     Log::i("NB ai: ",displayName().data()," guild=",int(guild()),
-           " state=",(aiState.funcIni.isValid() && st!=nullptr ? st->name().c_str() : "<none>"),
+           " state=",stName,
            " started=",int(aiState.started)," queue=",int(aiQueue.size()),
            " percEnemy=",int(hasPerc(PERC_ASSESSENEMY))," percDamage=",int(hasPerc(PERC_ASSESSDAMAGE)),
            " attitude=",int(owner.script().personAttitude(*this,pl)),

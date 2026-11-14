@@ -378,6 +378,22 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - wyciszone (zawsze 0 / bez działania, jak w tej wersji moda): `IsNewLegFeatures`, `RX_IsLegAst`, `RX_IsMultActive`, `RX_RoadOfTrialsActive`, `RX_IsHeroInsideOtherNpc`, `RX_Mult_SetPartyNpc`, `Mdl_SetHeroAniFps`, `InfoStatAdd`.
 - **Bez zmian (domyślne 0 jest bezpieczne albo czeka):** `RX_CanReattack` (zmiana celu po trafieniach od nie-wroga), `RX_IsNpcIgnoreTarget`, `RX_NpcIsStrafing`, `RX_IsWaiting`, `RX_ContainsRoutine`, `RX_CallOnDead`, `RX_ResetSummons`, `RX_SetDialogNpc`, `RX_RemoveItemsOnNpcBeat`; `Ext_PutInSlot` / `Ext_RemoveFromSlot` / `ActivateZSSlot` / `Hlp_HasInSlot` – mieszek i torba (odłożone); `Wld_IsRaining` – OpenGothic nie ma deszczu.
 
+### 51. Paczka 3: notatki i książki NB, śmierć postaci, dialogi przypisywane NPC – 🧪 (14.11.2026)
+- **Pliki:** `common/game/gamescript.cpp`, `common/ui/documentmenu.cpp`, `common/ui/documentmenu.h` (dwa ostatnie – nowe w repo, w projekcie borsuczyny są: podmienić)
+- **Uwaga do log.txt z 14.11 (20:51):** gra była zbudowana z paczką 1, ale bez paczki 2 (w logu „bound 116”, a z paczką 2 jest 128) – `gamescript.cpp` z poprawki 50 nie trafił do buildu. Paczka 3 zawiera paczkę 2.
+- **Notatki i książki** (`RX_OpenNote`, `RX_ToggleBookManagerWithSize`, `RX_ToggleBookManager`): 147 listów/notatek i 52 książki/pulpity NB otwierały się bez niczego – plugin ma własne okno. Teraz: tekstura NB (`RX_ScrollTextTexture` / `RX_BookManagerTexture`), rozmiar z `RX_ScrollSizeX/Y` (w % ekranu, kształt jak na monitorze 16:9), tekst w miejscach stron z `RX_BookManager_LP_*`/`RP_StartX` (w książce dwie kolumny), czcionka książek Gothica, `\n` = nowa linia, znaczniki `[POS=…]`, `[COL=…]`, `[/]`, `[RED]`… usunięte. Długi tekst idzie na kolejne strony: **przycisk SKIP / Escape** przewraca stronę, a na ostatniej zamyka (strzałki – w obie strony), pod książką numer strony.
+- **Śmierć postaci** (`RX_CallOnDead`, z `ZS_Dead`): woła funkcję śmierci tej postaci `AI_OnDead_<instancja>` (310 w skryptach – zadania, bossowie, np. po zabiciu celu zadania) i `AI_OnDead_Common` (np. bonus za 20 królików), jak plugin (bit 0x400 zmiennej 71 – raz na postać; handlarz – `RX_AST_RemoveTradeGoods`). Wcześniej żadna z nich się nie wykonywała.
+- **Dialog dla innego NPC** (`RX_SetDialogNpc`, 67 wywołań w `ZS_Talk`): dialog-szablon przypisywany NPC przy rozmowie – poker (Kardif, Orlan, Salandril, Raoul, Snaf, Samuel), maska śniącego u Xardasa (rozdz. 5) i inne. Wcześniej te opcje się nie pojawiały.
+- **Inne:** `Hlp_IsDexSword` (broń zręcznościowa: bit `BIT_ITEM_DEX_SWORD` – premia wytrzymałości do obrażeń, trucizna), `Game_Play3DSound` (np. „nie mogę tego użyć”), wyciszone `UpdateItemsInfoInInv`, `RX_IsRemoteSummon` (tryb wieloosobowy).
+- **Odłożone (widać w nowym logu):** `UpdateKarma` (karma bogów to cały system pluginu z komunikatami i osiągnięciami – osobna poprawka), `RX_KeyPressed` (klawisze skrótów NB z ini – mikstury, strzały, pochodnia…), `RX_CanReattack`, `RX_IsWaiting`, `RX_NpcIsStrafing`, `RX_ResetSummons`, `RX_RemoveItemsOnNpcBeat`, mieszek/torba.
+- **Znalezione przy okazji (do osobnej poprawki):** plugin woła też dla postaci `AI_OnTick_<instancja>`, `AI_OnHit_…`, `AI_OnGetDamage_…`, `AI_OnBreak_…` (mechaniki bossów, ok. 200 funkcji) – w OpenGothic nie działają.
+
+### 52. Rozszerzony log – 🧪 (14.11.2026)
+- **Pliki:** `common/game/gamescript.cpp`, `common/world/objects/npc.cpp`
+- **Brakujące funkcje:** `not implemented call [NAZWA] from FUNKCJA_SKRYPTU (argumenty)` – skąd skrypt ją woła i z czym (np. który klawisz, który plik dźwięku). Co 5 minut i przy zapisie gry linia `NB missing (…)`: ile razy każda brakująca funkcja była wołana – od najczęstszej.
+- **`[ctx]` – co robił gracz:** wybrana opcja dialogu (`dialog: Lares -> DIA_LARES_…`), użyty przedmiot, wpis w dzienniku, użyty obiekt (skrzynia, stół…), śmierć postaci i zabójca, otwarta notatka/książka, zapis gry. Błędy w logu mają przez to miejsce w grze.
+- **Mniej śmieci:** ta sama linia `RX_WriteLog` (np. `RX_Main_CycleTrigger {` co 2 s – ok. 600 linii na log) tylko 3 razy, potem przy 100/1000; `Mdl_Apply/RemoveOverlayMds` tylko, gdy plik się nie wczytał (było ok. 900 linii); `NB ai` tylko przy zmianie stanu lub celu potwora (było co 3 s dla każdego).
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).
@@ -389,3 +405,5 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - [ ] Potwory w walce za często odskakują/krążą (ścierwojad cofa się zamiast atakować). To problem silnika OpenGothic, nie tylko NB – to samo widać w modzie Renovation (goblin). Reguła `FA_ENEMY_PREHIT` (odskok, gdy przeciwnik bierze zamach) jest w OpenGothic sprawdzana przy każdej decyzji potwora – do porównania z oryginałem.
 - [ ] Walka kilku postaci z jednym celem: cel „głupieje” (krąży, nie atakuje) – do zbadania (nagranie z obozu bandytów, Brago)
 - [ ] `EXT_PutInSlot` / `ActivateZSSlot`: mieszek i torba na bohaterze (opcje z poprawki 5)
+- [ ] Funkcje bossów i postaci wołane przez plugin: `AI_OnTick_<instancja>`, `AI_OnHit_…`, `AI_OnGetDamage_…`, `AI_OnBreak_…` (z poprawki 51)
+- [ ] Karma bogów (`UpdateKarma`, 130 wywołań) i klawisze skrótów NB (`RX_KeyPressed`, 100 wywołań)
