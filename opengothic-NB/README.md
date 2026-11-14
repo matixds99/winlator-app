@@ -26,6 +26,7 @@ Te pliki trzeba **dodać**, nie podmieniać. Bez nich build się nie uda.
 
 | Plik | Co jest zmienione | Poprawki |
 |---|---|---|
+| `CMakeLists.txt` (główny plik projektu) | ZenKit z obsługą skompresowanych VDF (`Union.vdf` z zasobami pluginu NB), z miniz projektu | 49 |
 | `common/world/triggers/cscamera.cpp` | kamera filmowa: czarny ekran w scenie z Xardasem | 1 |
 | `common/world/triggers/cscamera.h` | j.w. | 1 |
 | `common/game/gamescript.cpp` | obsługa skryptów NB (Copilot) + stoły rzemieślnicze, `Menu_ReadInt/WriteInt`, domyślne opcje, pętle pluginu (`PerFrame`, `B_GetTime`), komunikaty na ekranie (`AI_PrintQuest`…), opisy przedmiotów w ekwipunku, wagi przedmiotów (`RX_SetWeightValueExt`), wygląd komunikatu o wpisie do dziennika, talenty i animacje walki NPC (`RX_ApplyProperOverlaysForNpc`), bandyci wrodzy bohaterowi (stosunek gildii), `Npc_GetGuildAttitude`, NPC dobywają broni w walce (`RX_SelectWeaponNpc`), towarzysz nie czeka po zmianie stanu, szanse trafienia NPC na starych zapisach, wybór broni NPC jak w pluginie (łuk najpierw), zdejmowanie nakładek broni bohatera (`Mdl_*Overlay*_NoUpdate`), style walki NPC wg gildii, wytrzymałość NB (animacje biegu/pływania, `Npc_GetWaterLevel`, paski `Bar_*`), poziom animacji broni bohatera według talentu, komunikaty NB (`AI_PrintItemInfo`, `AI_PrintClr`…) | 0, 2, 4, 5, 6, 9, 12, 13, 19, 23, 24, 25, 27, 30, 31, 32, 35, 41, 43, 45 |

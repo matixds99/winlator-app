@@ -379,6 +379,12 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Przyczyna:** mod zmieniał tylko poziom talentu (`Npc_SetTalentSkill`), a silnik dokładał zwykłe nakładki `HUMANS_1HST1/ST2`. NB wybiera animacje według procentu trafienia, więc procent zostawał (6%), a nakładki miecza mieszały się z animacją szpady amatora.
 - **Teraz:** przyciski poziomów ustawiają procent (Amator 10%, 30%, 60%, Mistrz 90%) przez `B_RaiseFightTalent` – jak u nauczyciela (procent „prawdziwy” w AIVAR 84–87, % trafienia, poziom talentu, `RX_LastAnim`) – i od razu wołają `RX_ApplyAnim_Weapons(hero, -1)`, więc skrypt NB zakłada właściwe animacje (szpada, szabla, miecz, tarcza, broń dwuręczna…). Pokazuje procent i poziom NB. Wytrzymałość w jednostkach gry (×10, jak pasek i statystyki), kroki ±10/±100. Komenda `tskill` przyjmuje procent (0/1/2 = 10/30/90%).
 
+### 49. Archiwum pluginu NB `Union.vdf` się nie wczytywało (brak dźwięków zamachu, ekwipunku…) – 🧪 (14.11.2026)
+- **Pliki:** `CMakeLists.txt` (główny plik projektu – podmienić)
+- **Przyczyna:** `Union.vdf` jest skompresowane (format ZippedStream Uniona); ZenKit był budowany bez tego (`ZK_ENABLE_ZIPPED_VDF=OFF`) – w logu „Detected compressed VDF (build ZenKit with ZK_ENABLE_ZIPPED_VDF=ON…)” i brak `woosh_01/02.wav`, `inv_open/close.wav`.
+- **Poprawka:** ZenKit dostaje obsługę skompresowanych VDF (`_ZK_WITH_ZIPPED_VDF`) z biblioteką miniz OpenGothic (`lib/miniz`). Samo `ZK_ENABLE_ZIPPED_VDF=ON` pobierałoby w czasie budowania drugą kopię miniz i tworzyło drugi cel `miniz` – konflikt z celem OpenGothic. Sprawdzone: `Stream.cc` i `Vfs.cc` ZenKita kompilują się z tą definicją i miniz 2.2.0 z projektu.
+- **Smugi ciosów:** do zbadania po wczytaniu `Union.vdf` (w DLL jest ślad osobnej funkcji „trails”: `RX_RT_TRAILS_MENU_CHECK`).
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).
