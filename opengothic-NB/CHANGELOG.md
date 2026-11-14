@@ -366,7 +366,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Przyczyna:** warunki przedmiotów NB (`C_ITEM.COND_ATR`) wskazują poza zwykłymi atrybutami także zmienne pluginu: `AIVRX_NPC_ATR_BOW` (89), `_SHIELD` (90), `_CROSSBOW` (91), `_STAMINA` (92) – w skryptach 207 przedmiotów wymaga wytrzymałości, 43 łuku, 35 kuszy, 1 tarczy. `Npc::attribute` zwracał 0 dla indeksów ≥ `ATR_MAX`, więc każdy taki warunek był niespełniony.
 - **Poprawka:** dla 89–92 wartość to zmienna NB postaci (`RX_GetNpcVar`); wytrzymałość jest tam trzymana jako `ATR_STAMINA_MAX` (×1, `B_CheckMenuOption` ją synchronizuje), a warunki są ×10 jak wszystko w NB – więc ×10.
 
-### 47. Animacje szpady na poziomie wojownika i mistrza inne niż w oryginale – 🔍 diagnostyka (14.11.2026)
+### 47. Animacje szpady na poziomie wojownika i mistrza inne niż w oryginale – ✅ wyjaśnione (14.11.2026): talent 6% + nakładki starego moda testowego
 - **Pliki:** `common/world/objects/npc.cpp`, `common/game/gamescript.cpp`
 - **Z nagrań (Winlator):** amator (`Humans_Pirate`) wygląda jak w oryginale; wojownik (`Humans_Rapier_ST2`) – krótkie cięcia w bok; mistrz (`Humans_Rapier_ST3`) – lewa ręka za plecami, bardzo szybkie pchnięcia. W OpenGothic tego nie ma. W oryginale przy ciosach widać też białe smugi za bronią i błyski.
 - **Uwaga:** zakładka „Umiejętności” narzędzia z menu modów zmienia poziom i zakłada nakładki `HUMANS_1HST1/ST2` – zastępują one nakładki szpady NB, więc test trzeba robić bez niej (poziom ze skryptów, broń założona na nowo).
@@ -374,7 +374,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Przy okazji:** brak dźwięków `woosh_01/02.wav`, `inv_open/close.wav` – w logu `Union.vdf` się nie wczytuje („Detected compressed VDF – build ZenKit with ZK_ENABLE_ZIPPED_VDF=ON”). To archiwum pluginu NB z jego zasobami (dźwięki, możliwe że też smugi ciosów).
 - **Diagnostyka:** w `log.txt` linie `[anim] hero overlay +NAZWA` (z `NOT LOADED`, gdy plik animacji się nie wczytał) i `[anim] hero attack NAZWA comb=… comboLen=… hit1h=… overlays: …` – która animacja ciosu jest odtwarzana i z jakimi nakładkami.
 
-### 48. Mod „Test umiejętności broni” przerobiony pod NB – 🧪 (14.11.2026)
+### 48. Mod „Test umiejętności broni” przerobiony pod NB – ✅ (14.11.2026)
 - **Pliki:** `mods/test-umiejetnosci-broni/index.js` (podmienić `index.js` w folderze tego moda; `manifest.json` bez zmian)
 - **Przyczyna:** mod zmieniał tylko poziom talentu (`Npc_SetTalentSkill`), a silnik dokładał zwykłe nakładki `HUMANS_1HST1/ST2`. NB wybiera animacje według procentu trafienia, więc procent zostawał (6%), a nakładki miecza mieszały się z animacją szpady amatora.
 - **Teraz:** przyciski poziomów ustawiają procent (Amator 10%, 30%, 60%, Mistrz 90%) przez `B_RaiseFightTalent` – jak u nauczyciela (procent „prawdziwy” w AIVAR 84–87, % trafienia, poziom talentu, `RX_LastAnim`) – i od razu wołają `RX_ApplyAnim_Weapons(hero, -1)`, więc skrypt NB zakłada właściwe animacje (szpada, szabla, miecz, tarcza, broń dwuręczna…). Pokazuje procent i poziom NB. Wytrzymałość w jednostkach gry (×10, jak pasek i statystyki), kroki ±10/±100. Komenda `tskill` przyjmuje procent (0/1/2 = 10/30/90%).
