@@ -319,6 +319,13 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - zapisy: hełm nie ma własnego wpisu w zapisie – odtwarza się z założonych przedmiotów (format zapisu bez zmian). W starych zapisach hełm siedział na miejscu zbroi: przenosi się na swoje miejsce, a NPC (nie bohater) dostaje z powrotem najlepszą zbroję z ekwipunku.
 - Usunięta diagnostyka zbroi z poprawki 16 (linie `armor "…"` w logu).
 
+### 40. Sprint New Balance: klawisz ~ i nowy przycisk na nakładce – 🧪 (14.11.2026)
+- **Pliki:** `android/assets/touch-icons/sprint.png` (🆕 nowy plik), `common/mainwindow.cpp`, `common/ui/mobilecontrolsmodel.cpp`, `common/ui/mobilecontrolsmodel.h`, `common/utils/androidinput.cpp`, `common/utils/androidinput.h` (zmienione pliki z projektu – podmienić)
+- **Jak to działa w NB:** plugin pod klawiszem `~` (`KEY_SPRINT`) wywołuje skrypt `B_Hotkey_Sprint`. Skrypt włącza/wyłącza `SPRINT_ACTIVE` i nakładkę animacji `Humans_MageSprint.MDS`, sprawdza wytrzymałość (bez niej sprint się nie włączy) i mikstury szybkości.
+- **Poprawka:**
+  - klawisz `~` (klawiatura podłączona do telefonu albo komputer) wywołuje `B_Hotkey_Sprint`;
+  - na nakładce nowy przycisk sprintu (biegnąca postać z liniami ruchu, w stylu pozostałych ikon) obok przycisku chodu; podświetlony, gdy sprint jest włączony; pokazuje się tylko w modzie, który ma ten skrypt (NB), i nie po śmierci; w edytorze HUD da się go przesunąć, powiększyć i ukryć.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

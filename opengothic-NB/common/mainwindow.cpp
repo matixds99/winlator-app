@@ -44,6 +44,33 @@ static float progressTexScale(const Tempest::Texture2d* loadBox) {
   return float(loadBox->w())/512.f;
   }
 
+// NB fix 40: the sprint of New Balance. In the original the Union plugin calls B_Hotkey_Sprint with the key ~ (the script
+// switches the overlay Humans_MageSprint.MDS and SPRINT_ACTIVE, it checks the stamina and the potion of the speed).
+static zenkit::DaedalusSymbol* nbSprintFn() {
+  auto* w = Gothic::inst().world();
+  return w==nullptr ? nullptr : w->script().getVm().find_symbol_by_name("B_HOTKEY_SPRINT");
+  }
+
+static bool nbToggleSprint() {
+  auto* w  = Gothic::inst().world();
+  auto* pl = Gothic::inst().player();
+  auto* fn = nbSprintFn();
+  if(fn==nullptr || pl==nullptr || pl->isDead() || pl->isDown() || Gothic::inst().isPause() || Gothic::inst().isInDialog())
+    return false;
+  w->script().getVm().call_function<void>(fn);
+  return true;
+  }
+
+#ifdef OPENGOTHIC_TOUCH_UI
+static bool nbSprintActive() {
+  auto* w = Gothic::inst().world();
+  if(w==nullptr)
+    return false;
+  auto* sym = w->script().getVm().find_symbol_by_name("SPRINT_ACTIVE");
+  return sym!=nullptr && sym->type()==zenkit::DaedalusDataType::INT && sym->get_int()!=0;
+  }
+#endif
+
 MainWindow::MainWindow(Device& device)
   : Window(CommandLine::inst().isWindowMode() ? Normal : Maximized),device(device),swapchain(device,hwnd()),
     atlas(device),rootMenu(keycodec),inventory(keycodec),
@@ -594,6 +621,12 @@ void MainWindow::keyDownEvent(KeyEvent &event) {
       }
     }
   uiKeyUp=nullptr;
+
+  // NB fix 40: ~ switches the sprint of New Balance, as in the original
+  if((event.code=='`' || event.code=='~') && nbToggleSprint()) {
+    event.accept();
+    return;
+    }
 
   auto act     = keycodec.tr(event);
   auto mapping = keycodec.mapping(event);
@@ -1997,6 +2030,11 @@ void MainWindow::onMobileAction(int id) {
       fastForward = !fastForward;
     return;
     }
+  if(id==Mobile::Special::Sprint) {
+    if(mobileContext()==Mobile::Mode::Game)
+      nbToggleSprint();
+    return;
+    }
   if(mobileContext()!=Mobile::Mode::Game)
     return;
   if(id==Mobile::Special::Target)
@@ -2048,6 +2086,8 @@ void MainWindow::updateMobileAvailability() {
   {
   auto pl = Gothic::inst().player();
   androidControls.playerDead(mode==Mobile::Mode::Game && pl!=nullptr && pl->isDead());
+  // NB fix 40: the button of the sprint, when the scripts have it
+  androidControls.sprint(nbSprintFn()!=nullptr);
   }
 
   if(mode==Mobile::Mode::Game) {
@@ -2128,6 +2168,7 @@ void MainWindow::updateMobileOverlay() {
   hud.inventoryTransfer = inventory.isOpen()!=InventoryMenu::State::Equip;
   hud.targetLocked = player.hasLock();
   hud.fastForward  = fastForward;
+  hud.sprint       = nbSprintActive();
   if(mobileContext()==Mobile::Mode::Inventory)
     hud.useLabel = std::string(inventory.mobileActionLabel());
 

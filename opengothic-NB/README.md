@@ -15,8 +15,9 @@ Te pliki trzeba **dodać**, nie podmieniać. Bez nich build się nie uda.
 |---|---|---|---|
 | `common/game/nboptions.h` | do folderu `common/game/`, obok `gamescript.cpp` | `gamescript.cpp`, `ui/gamemenu.cpp` | 5 |
 | `common/game/nbiteminfo.h` | do folderu `common/game/`, obok `gamescript.cpp` | `gamescript.cpp` | 12, 13 |
+| `android/assets/touch-icons/sprint.png` | do folderu `android/assets/touch-icons/`, obok `walk.png` | `utils/androidinput.cpp` (ikona sprintu) | 40 |
 
-> To tylko pliki nagłówkowe (`.h`), więc nie trzeba niczego dopisywać w `CMakeLists.txt`.
+> Nagłówki (`.h`) i ikona – nie trzeba niczego dopisywać w `CMakeLists.txt` (ikony są zbierane z folderu automatycznie; przy pierwszym buildzie po dodaniu ikony CMake sam przeładuje listę).
 
 ---
 
@@ -30,6 +31,11 @@ Te pliki trzeba **dodać**, nie podmieniać. Bez nich build się nie uda.
 | `common/world/objects/npc.cpp` | zmienne NB postaci, AI potworów (Copilot) + bohater nie wstaje z łóżka przy śnie, efekty krwi przy trafieniu, prędkość ruchu przeskalowanych istot, potwory nie odskakują bez przerwy, zwierzęta odskakują po 2 trafieniach, potwory atakują w tempie Gothic, hełm w węźle `ZS_HELMET` obok zbroi | 0, 0a, 7, 17, 20, 21, 22, 26, 28, 33, 34, 39 |
 | `common/game/inventory.cpp` | osobne miejsce na hełm (zbroja z `WEAR_HEAD`), stare zapisy: hełm z miejsca zbroi na swoje | 39 |
 | `common/game/inventory.h` | j.w. (`currentHelmet`, `isHelmet`) | 39 |
+| `common/mainwindow.cpp` | sprint NB: klawisz `~` i przycisk na nakładce wywołują `B_Hotkey_Sprint` | 40 |
+| `common/ui/mobilecontrolsmodel.cpp` | przycisk sprintu na nakładce (obok chodu), da się go przesuwać i ukryć w edytorze HUD | 40 |
+| `common/ui/mobilecontrolsmodel.h` | j.w. (`Special::Sprint`, `sprint()`, id `sprint`) | 40 |
+| `common/utils/androidinput.cpp` | ikona sprintu, podświetlenie, gdy sprint włączony | 40 |
+| `common/utils/androidinput.h` | j.w. (`IconSprint`, `hud.sprint`) | 40 |
 | `common/gothic.cpp` | ekran wczytywania: obrazki moda `LOADING_<ŚWIAT>_<numer>` | 3, 3a |
 | `common/mainwindow.cpp` | ekran wczytywania: świat z nagłówka save'a, czarne tło zamiast białego, pasek wczytywania dla tekstur HD | 3, 3a, 14 |
 | `common/ui/gamemenu.cpp` | strona „Ustawienia gry” z przełącznikami NB, okno statystyk postaci (B) z 5 zakładkami, zakładki dziennika (zakończone, bestiariusz) | 5, 8, 10, 15 |
