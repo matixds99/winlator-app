@@ -100,6 +100,9 @@ class Controller {
     void  keyboard(bool on) { controls.showKeyboard(on); }
     void  playerDead(bool on) { controls.playerDead(on); }
     void  sprint(bool available) { controls.sprint(available); }
+    void  stamina(bool available) { controls.stamina(available); }
+    const std::map<std::string,Mobile::HudPlace>& hudPlaces() const { return controls.hudPlaces(); }
+    bool  editingHud() const { return controls.editingHud(); }
     void  modMenu(bool on) { controls.modMenu(on); }
 
     /// Pointer input: touches on Android, the mouse on desktop builds.

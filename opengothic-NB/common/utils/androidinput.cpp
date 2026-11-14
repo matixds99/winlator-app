@@ -700,6 +700,12 @@ void AndroidInput::Controller::paintButton(Painter& p, Font& font, size_t index)
     return;
     }
 
+  if(b.bar) {
+    // NB fix 42: a status bar in the editor of the HUD - the window draws the bar, here only a light frame over it
+    fill(p,r,Color(1.f,1.f,1.f,b.dimmed ? 0.05f : (active ? 0.3f : 0.14f)));
+    return;
+    }
+
   const int icon = iconFor(b);
   if(icon==NoIcon) {
     if(game && Key::One<=b.key && b.key<=Key::Zero) {

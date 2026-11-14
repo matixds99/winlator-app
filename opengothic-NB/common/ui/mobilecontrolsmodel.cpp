@@ -30,7 +30,7 @@ constexpr float    HudGap = 3.f;   // layout units, multiplied by Controls::unit
 
 /// A button of the HUD (not the DONE and RESET, not the hotbar) that blocks the way of the others
 bool isHudIcon(const Button& b) {
-  return !b.id.empty() && b.visible;
+  return !b.id.empty() && b.visible && !b.bar;
   }
 
 /// true when a round button of the HUD with the center (px,py) and the radius r touches another one
@@ -158,6 +158,16 @@ void Controls::features(bool speed, bool strafe) {
   featureSpeed  = speed;
   featureStrafe = strafe;
   rebuild();
+  }
+
+void Controls::stamina(bool available) {
+  if(featureStamina==available)
+    return;
+  featureStamina = available;
+  if(editing) {
+    cancel();
+    rebuild();
+    }
   }
 
 void Controls::sprint(bool available) {
@@ -471,6 +481,22 @@ void Controls::buildGame(const Anchor&) {
   icon("target",    right(372),   bottom(230),    56, "TARGET", Key::Enter, false, Special::Target);
   icon("spells",    right(372),   bottom(150),    56, "SPELLS", Key::Enter, false, Special::Spell);
   icon("weapon",    right(300),   bottom(276),    52, "WEAPON", Key::Weapon);
+
+  // NB fix 42: the status bars in the editor: their frames are dragged (the bars are drawn by the window)
+  if(editing) {
+    for(int i=0; i<HudBarCount; ++i) {
+      if(i==1 && !featureStamina)
+        continue;
+      HudPlace place;
+      if(auto it = places.find(HudBarIds[i]); it!=places.end())
+        place = it->second;
+      auto& b  = add(0,0,0,0,"",Key::Enter);
+      b.rect   = hudBarRect(i,width,height,buttonScale,place);
+      b.id     = HudBarIds[i];
+      b.bar    = true;
+      b.dimmed = place.hidden;
+      }
+    }
 
   // The hotbar is centered below the status bars. Its slots are of the size of the buttons.
   const float slot = HotbarSlot*k;
@@ -985,6 +1011,11 @@ void Controls::moveEditor(Finger& f, float x, float y) {
   auto&       b  = layout[size_t(f.button)];
   float       cx = x-f.grabX;
   float       cy = y-f.grabY;
+  if(b.bar) {
+    // a status bar is not solid: it only stays on the screen
+    cx = std::clamp(cx,b.rect.w/2,width -b.rect.w/2);
+    cy = std::clamp(cy,b.rect.h/2,height-b.rect.h/2);
+    } else
   if(!hudResolve(layout,size_t(f.button),width,height,HudGap*scale,cx,cy))
     return;
   b.rect.x = cx-b.rect.w/2;
@@ -1007,6 +1038,18 @@ void Controls::upEditor(const Finger& f) {
     } else {
     // a tap: the next size of the button (5 steps, after the biggest the smallest). A size at which the button would
     // lie on another one is skipped; a smaller one always fits.
+    if(b.bar) {
+      // a status bar: the next of the 5 sizes, it lies over the others anyway
+      if(!p.placed) {
+        p.placed = true;
+        p.x      = (b.rect.x+b.rect.w/2)/width;
+        p.y      = (b.rect.y+b.rect.h/2)/height;
+        }
+      p.size     = (p.size+1)%HudSizeSteps;
+      hudChanged = true;
+      rebuild();
+      return;
+      }
     const size_t self   = size_t(f.button);
     const float  base   = b.rect.w/hudSizeFactor(p.size);   // the diameter of the normal size
     const float  px     = b.rect.x+b.rect.w/2;

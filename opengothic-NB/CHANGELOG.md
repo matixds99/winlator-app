@@ -334,6 +334,14 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - `RX_IsRunAniActive` – postać gra pętlę biegu (`S_RUNL`, `S_1HRUNL`, `S_FISTRUNL`…); `RX_IsAniActive` / `Npc_IsAnimationActive` – animacja o tej nazwie jest odtwarzana; `Npc_GetWaterLevel` – 0 / 1 (woda, pływanie) / 2 (nurkowanie);
   - `Bar_*` zapamiętują stan pasków; pasek wytrzymałości (`BAR_Stamina.tga`, przy zatruciu `BAR_Poison.tga`) jest rysowany: na nakładce dotykowej – na środku między życiem a maną (licznik doświadczenia przesuwa się nad niego), na komputerze – na dole na środku (nad paskiem powietrza, gdy jest).
 
+### 42. Paski życia, wytrzymałości i many: przesuwanie i rozmiar w edytorze HUD, liczby wytrzymałości – 🧪 (14.11.2026)
+- **Pliki:** `common/mainwindow.cpp`, `common/ui/mobilecontrolsmodel.cpp`, `common/ui/mobilecontrolsmodel.h`, `common/utils/androidinput.cpp`, `common/utils/androidinput.h`
+- **Zgłoszenie:** przy pasku wytrzymałości nie było wartości (bohater ma maks. 100); w NB paski życia, wytrzymałości i many dało się przesuwać i zmieniać ich rozmiar.
+- **Poprawka:**
+  - przy włączonych liczbach (ustawienia nakładki) nad paskiem wytrzymałości jest `wartość/maks.` – tak, jak liczą skrypty NB (`ATR_STAMINA` / `ATR_STAMINA_MAX*10`), licznik doświadczenia stoi nad nim;
+  - paski są częścią edytora HUD (Ustawienia → edycja HUD), jak przyciski: przeciągnięcie przesuwa pasek, stuknięcie zmienia rozmiar (5 kroków), przytrzymanie ukrywa/pokazuje; RESET przywraca miejsca domyślne. Zapisywane w tej samej sekcji co przyciski (`bar_hp`, `bar_stamina`, `bar_mana`). Paski nie odpychają przycisków (mogą na nich leżeć). Pasek wytrzymałości jest w edytorze tylko w modzie, który go ma (NB), pokazany jako pełny.
+- Zrobione w silniku, nie w JS: paski rysuje okno gry, a mody JS nie mają do nich dostępu.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

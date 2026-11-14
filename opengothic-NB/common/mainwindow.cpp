@@ -1002,47 +1002,73 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
   if(mode!=Mobile::Mode::Game)
     return;
 
-  // above the hotbar of the controls, same units as the model
-  // the hotbar follows the size of the buttons (settings), so do the bars over it
-  const float s     = std::min(float(w())/1000.f,float(h())/440.f);
-  const float slot  = Mobile::hotbarSlot(float(pref.buttons)/100.f);
-  const int   half  = int(slot*5*s);
-  const int   width = int(slot*3.2f*s);   // the frame keeps its proportions, so it is not too tall
-  const int   y     = h()-int((Mobile::HotbarBottom+slot+9)*s);
+  // NB fix 42: the bars stand where the editor of the HUD has put them (by default over the ends of the hotbar, the
+  // stamina of New Balance in the middle), in the size chosen there; a hidden bar is not drawn (in the editor it is)
+  const auto& places  = androidControls.hudPlaces();
+  const bool  editing = androidControls.editingHud();
+  const float buttons = float(pref.buttons)/100.f;
+  auto placeOf = [&](int i) {
+    const auto it = places.find(Mobile::HudBarIds[i]);
+    return it==places.end() ? Mobile::HudPlace() : it->second;
+    };
+  struct Drawn {
+    bool visible = false;
+    int  x = 0, top = 0, width = 0, bottom = 0;
+    };
+  Drawn drawn[Mobile::HudBarCount];
+  auto drawHudBar = [&](int i, const Tempest::Texture2d* tex, float value) {
+    const auto place = placeOf(i);
+    if(place.hidden && !editing)
+      return;
+    const auto r     = Mobile::hudBarRect(i,float(w()),float(h()),buttons,place);
+    const int  width = int(r.w);
+    const int  bh    = barHeight(width);
+    const int  bot   = int(r.y+r.h/2)+bh/2;
+    drawBar(p,tex,int(r.x),bot,width,value,AlignLeft | AlignBottom);
+    drawn[i] = {true,int(r.x),bot-bh,width,bot};
+    };
 
-  // the bars stand over the ends of the hotbar
-  drawBar(p,barHp,w()/2-half,y,width,hp,AlignLeft | AlignBottom);
-  const int xr = w()/2+half-width;
+  drawHudBar(0,barHp,hp);
   if(pl.isDive()) {
     const float total = float(pl.diveTimeLimit())/1000.f;
     const float left  = total>0 ? (total-float(pl.diveTime())/1000.f)/total : 0.f;
-    drawBar(p,barMisc,xr,y,width,left,AlignLeft | AlignBottom);
+    drawHudBar(2,barMisc,left);
     } else {
-    drawBar(p,barMana,xr,y,width,mp,AlignLeft | AlignBottom);
+    drawHudBar(2,barMana,mp);
     }
 
-  const int bh = barHeight(width);
-  const int th = hudFont.textSize(hpText).h;
-
-  // NB fix 41: the stamina of New Balance in the middle, between the life and the mana
+  // the stamina of New Balance (filled by the scripts with Bar_*): in the editor it is shown full to be placed
   const Tempest::Texture2d* stTex = nullptr;
   float                     stVal = 0;
-  const bool                stamina = nbStaminaBar(stTex,stVal)!=nullptr;
-  if(stamina)
-    drawBar(p,stTex,w()/2-width/2,y,width,stVal,AlignLeft | AlignBottom);
+  const auto*               stBar = nbStaminaBar(stTex,stVal);
+  androidControls.stamina(NbBars::at(NbBars::Stamina)->maxRange>0);
+  if(stBar!=nullptr)
+    drawHudBar(1,stTex,stVal); else
+  if(editing && NbBars::at(NbBars::Stamina)->maxRange>0)
+    drawHudBar(1,Resources::loadTexture("BAR_Stamina.tga"),1.f);
 
+  const int th = hudFont.textSize(hpText).h;
+  auto textOver = [&](const Drawn& d, const std::string& text, int line) {
+    // centered over the frame (the text is above it, not in it); line 1 is one more line higher
+    drawText(text,d.x+(d.width-hudFont.textSize(text).w)/2,d.top-2-line*(th+2));
+    };
   if(numbers) {
-    // centered over the bars (the text is above the frame, not in it)
-    const int top = y-bh-2;
-    drawText(hpText,w()/2-half+(width-hudFont.textSize(hpText).w)/2,top);
-    if(!pl.isDive())
-      drawText(mpText,xr+(width-hudFont.textSize(mpText).w)/2,top);
+    if(drawn[0].visible)
+      textOver(drawn[0],hpText,0);
+    if(drawn[2].visible && !pl.isDive())
+      textOver(drawn[2],mpText,0);
+    if(drawn[1].visible && stBar!=nullptr)
+      textOver(drawn[1],std::to_string(stBar->value)+"/"+std::to_string(stBar->maxRange),0);
     }
   if(xp) {
-    // between the bars, on the level of the frames; above the stamina when it is shown
-    if(stamina)
-      drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,y-bh-2); else
-      drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,y-(bh-th)/2);
+    if(drawn[1].visible) {
+      // above the stamina (and its numbers)
+      textOver(drawn[1],xpText,numbers && stBar!=nullptr ? 1 : 0);
+      } else {
+      // between the bars of life and mana, on the level of the frames (the default place)
+      const auto r = Mobile::hudBarRect(1,float(w()),float(h()),buttons,Mobile::HudPlace());
+      drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,int(r.y+r.h/2)+th/2);
+      }
     }
   }
 #endif
