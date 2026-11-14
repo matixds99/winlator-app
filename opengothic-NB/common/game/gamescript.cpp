@@ -1232,6 +1232,29 @@ void GameScript::initCommon() {
     bindNb("AI_PRINTBONUS",          [](std::string_view msg) { Gothic::inst().onPrint(std::string(msg).c_str()); });
     bindNb("AI_FASTPRINTSKILLCRAFT", [](std::string_view msg) { Gothic::inst().onPrint(std::string(msg).c_str()); });
     bindNb("AI_NOTICEPRINT",         [](int32_t, int32_t, std::string_view msg) { Gothic::inst().onPrint(std::string(msg).c_str()); });
+    // NB fix 45: the other messages of the plugin. Without them a refusal was silent, e.g. at a teacher
+    // (B_TeachStamina: AI_PrintItemInfo / AI_PrintClr "not enough learning points / gold", "improve by +1"...)
+    const auto nbPrint = [](std::string_view msg) {
+      if(!msg.empty())
+        Gothic::inst().onPrint(std::string(msg).c_str());
+      };
+    bindNb("AI_PRINTITEMINFO",  [nbPrint](std::string_view /*title*/, std::string_view msg, int32_t, int32_t) { nbPrint(msg); });
+    bindNb("AI_PRINTCLR",       [nbPrint](std::string_view msg, int32_t, int32_t, int32_t) { nbPrint(msg); });
+    bindNb("AI_PRINTCRAFT",     [nbPrint](std::string_view msg, int32_t, int32_t, int32_t) { nbPrint(msg); });
+    bindNb("AI_FASTPRINT_1",    [nbPrint](std::string_view msg, int32_t, int32_t) { nbPrint(msg); });
+    bindNb("AI_FASTPRINT_2",    [nbPrint](std::string_view msg, int32_t, int32_t) { nbPrint(msg); });
+    bindNb("AI_PRINTEXP",       [nbPrint](std::string_view msg) { nbPrint(msg); });
+    bindNb("AI_PRINTMIDDLE",    [nbPrint](std::string_view msg) { nbPrint(msg); });
+    bindNb("AI_PRINTBOTTOMRED", [nbPrint](std::string_view msg) { nbPrint(msg); });
+    bindNb("AI_PRINTBONUSITEM", [nbPrint](std::string_view msg) { nbPrint(msg); });
+    bindNb("AI_PRINTBONUSLONG", [nbPrint](std::string_view msg) { nbPrint(msg); });
+    bindNb("PRINTWINC",         [nbPrint](std::string_view msg) { nbPrint(msg); });
+    bindNb("AI_PRINTPOS",       [nbPrint](std::string_view msg, int32_t, int32_t, std::string_view, int32_t, int32_t) { nbPrint(msg); });
+    bindNb("AI_PRINTPOS_CLEAR", []() {});
+    bindNb("AI_PRINTCLRSCREEN", []() {});
+    bindNb("PRINTSCREENCOLOR",  [](std::string_view msg, int32_t x, int32_t y, std::string_view font, int32_t time, std::string_view /*color*/) {
+      Gothic::inst().onPrintScreen(msg,x,y,time,Resources::font(font,Resources::FontType::Normal,1.0));
+      });
     // B_LogEntry: "Nowy wpis w dzienniku!" + the name of the topic. As the Union plugin draws it: on the left,
     // at 29% of the height, the title in RX_QuestTitleFont (new: gold, failed: red, finished: green in the
     // plugin - here: yellow / red / white, the colors of OpenGothic fonts) and the topic in white below.

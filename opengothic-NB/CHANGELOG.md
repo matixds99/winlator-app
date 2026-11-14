@@ -355,6 +355,12 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Poprawka:** `IsEnabledDexSwordAnims = 1` dopisane do domyślnych opcji NB (zapisuje się do Gothic.ini, gdy klucza nie ma).
 - Uwaga: skrypty NB przy mistrzu zakładają `humans_1hDexST2`, a przy 60–89% `humans_1hDexST3` (zamienione w skryptach moda) – tak samo jak w oryginale.
 
+### 45. Nauka wytrzymałości u Laresa – zero reakcji; różne liczby wytrzymałości na HUD i w statystykach – 🧪 (14.11.2026)
+- **Pliki:** `common/game/gamescript.cpp`, `common/mainwindow.cpp`
+- **Przyczyna (nauka):** `B_TeachStamina` przy każdej odmowie (za mało punktów nauki, za mało złota, maksimum, „ulepszaj po +1”) wypisuje komunikat przez `AI_PrintItemInfo` albo `AI_PrintClr` – funkcje pluginu, których nie było, więc odmowa była cicha. Tak samo milczało kilkanaście innych komunikatów NB.
+- **Poprawka:** komunikaty pluginu na ekranie: `AI_PrintItemInfo`, `AI_PrintClr`, `AI_PrintCraft`, `AI_FastPrint_1/2`, `AI_PrintExp`, `AI_PrintMiddle`, `AI_PrintBottomRed`, `AI_PrintBonusItem`, `AI_PrintBonusLong`, `PrintWinC`, `AI_PrintPos`, `PrintScreenColor` (+ `AI_PrintPos_Clear`, `AI_PrintClrScreen` bez działania). Teraz widać, dlaczego nauka się nie udaje.
+- **Liczby wytrzymałości:** skrypty trzymają maksimum w jednostkach ×1 (`ATR_STAMINA_MAX`, np. 10 → 100 w grze), a bieżącą wartość ×10 (`ATR_STAMINA`); NB pokazuje wszędzie ×10. Pasek HUD brał liczby z ostatniego `Bar_SetValue/SetMaxRange` – teraz liczy je wprost ze zmiennych, tak samo jak okno statystyk. Narzędzie deweloperskie z menu modów pokazuje surowe `ATR_STAMINA_MAX` (to nie jest plik z tego repozytorium).
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

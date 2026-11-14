@@ -54,10 +54,23 @@ static zenkit::DaedalusSymbol* nbSprintFn() {
   return w==nullptr ? nullptr : w->script().getVm().find_symbol_by_name("B_HOTKEY_SPRINT");
   }
 
-/// NB fix 41: the bar of the stamina of New Balance (filled by the scripts with Bar_*), nullptr when it is hidden
+/// NB fix 41: the bar of the stamina of New Balance (shown by the scripts with Bar_*), nullptr when it is hidden.
+/// NB fix 45: the numbers are taken from the variables of the scripts (ATR_STAMINA / ATR_STAMINA_MAX*10, as the
+/// screen of the statistics and B_UpdateStaminaBar count them), so the bar never shows other numbers than the menu.
 static const NbBars::Bar* nbStaminaBar(const Tempest::Texture2d*& tex, float& value) {
   auto* b = NbBars::at(NbBars::Stamina);
-  if(b==nullptr || !b->show || b->maxRange<=0 || Gothic::inst().world()==nullptr)
+  auto* w = Gothic::inst().world();
+  if(b==nullptr || !b->show || w==nullptr)
+    return nullptr;
+  auto& vm  = w->script().getVm();
+  auto* cur = vm.find_symbol_by_name("ATR_STAMINA");
+  auto* max = vm.find_symbol_by_name("ATR_STAMINA_MAX");
+  if(cur!=nullptr && max!=nullptr && !cur->is_member() && !max->is_member() &&
+     cur->type()==zenkit::DaedalusDataType::INT && max->type()==zenkit::DaedalusDataType::INT && max->get_int()>0) {
+    b->value    = cur->get_int();
+    b->maxRange = max->get_int()*10;
+    }
+  if(b->maxRange<=0)
     return nullptr;
   tex   = Resources::loadTexture(b->tex.empty() ? std::string("BAR_Stamina.tga") : b->tex);
   value = std::clamp(float(b->value)/float(b->maxRange),0.f,1.f);
