@@ -326,7 +326,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - klawisz `~` (klawiatura podłączona do telefonu albo komputer) wywołuje `B_Hotkey_Sprint`;
   - na nakładce nowy przycisk sprintu (biegnąca postać z liniami ruchu, w stylu pozostałych ikon) obok przycisku chodu; podświetlony, gdy sprint jest włączony; pokazuje się tylko w modzie, który ma ten skrypt (NB), i nie po śmierci; w edytorze HUD da się go przesunąć, powiększyć i ukryć.
 
-### 41. Wytrzymałość NB nie spadała i nie było jej paska – 🧪 (14.11.2026)
+### 41. Wytrzymałość NB nie spadała i nie było jej paska – ✅ (14.11.2026)
 - **Pliki:** `common/game/nbbars.h` (🆕 nowy plik), `common/game/gamescript.cpp`, `common/mainwindow.cpp`
 - **Jak to działa w NB:** skrypt `Hero_Poisoned` (co cykl, z `RX_Main_CycleTrigger`) zabiera wytrzymałość (`RX_RestoreStamina(-x)`, koszt zależy od wagi zbroi, hełmu, tarczy i broni): przy sprincie – gdy `BS_RUN`, `SPRINT_ACTIVE` i `RX_IsRunAniActive(hero)`; przy skoku, wspinaczce i bloku – po stanach ciała; przy nurkowaniu – `Npc_GetWaterLevel(hero)==WATER_DIVE` albo `BS_DIVE`, bez animacji `S_SWIM`. Pasek rysuje plugin: `PerFrame` → `B_UpdateStaminaBar` → `Bar_SetShow/SetBarTex/SetValue/SetMaxRange(STAMINABAR_INDEX=1, …)`.
 - **Przyczyna:** brakowało funkcji pluginu i silnika: `RX_IsRunAniActive` (zawsze 0 – sprint nic nie kosztował), `RX_IsAniActive`, `Npc_IsAnimationActive`, `Npc_GetWaterLevel` i wszystkich `Bar_*` (paska nie było, więc nie było też widać spadku przy skoku).
@@ -334,7 +334,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - `RX_IsRunAniActive` – postać gra pętlę biegu (`S_RUNL`, `S_1HRUNL`, `S_FISTRUNL`…); `RX_IsAniActive` / `Npc_IsAnimationActive` – animacja o tej nazwie jest odtwarzana; `Npc_GetWaterLevel` – 0 / 1 (woda, pływanie) / 2 (nurkowanie);
   - `Bar_*` zapamiętują stan pasków; pasek wytrzymałości (`BAR_Stamina.tga`, przy zatruciu `BAR_Poison.tga`) jest rysowany: na nakładce dotykowej – na środku między życiem a maną (licznik doświadczenia przesuwa się nad niego), na komputerze – na dole na środku (nad paskiem powietrza, gdy jest).
 
-### 42. Paski życia, wytrzymałości i many: przesuwanie i rozmiar w edytorze HUD, liczby wytrzymałości – 🧪 (14.11.2026)
+### 42. Paski życia, wytrzymałości i many: przesuwanie i rozmiar w edytorze HUD, liczby wytrzymałości – ✅ (14.11.2026)
 - **Pliki:** `common/mainwindow.cpp`, `common/ui/mobilecontrolsmodel.cpp`, `common/ui/mobilecontrolsmodel.h`, `common/utils/androidinput.cpp`, `common/utils/androidinput.h`
 - **Zgłoszenie:** przy pasku wytrzymałości nie było wartości (bohater ma maks. 100); w NB paski życia, wytrzymałości i many dało się przesuwać i zmieniać ich rozmiar.
 - **Poprawka:**
