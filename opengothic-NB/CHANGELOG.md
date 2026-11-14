@@ -368,22 +368,15 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 
 ### 47. Animacje szpady na poziomie wojownika i mistrza inne niż w oryginale – ✅ wyjaśnione (14.11.2026): talent 6% + nakładki starego moda testowego
 - **Pliki:** `common/world/objects/npc.cpp`, `common/game/gamescript.cpp`
-- **Z nagrań (Winlator):** amator (`Humans_Pirate`) wygląda jak w oryginale; wojownik (`Humans_Rapier_ST2`) – krótkie cięcia w bok; mistrz (`Humans_Rapier_ST3`) – lewa ręka za plecami, bardzo szybkie pchnięcia. W OpenGothic tego nie ma. W oryginale przy ciosach widać też białe smugi za bronią i błyski.
+- **Z nagrań (Winlator):** amator (`Humans_Pirate`) wygląda jak w oryginale; wojownik (`Humans_Rapier_ST2`) – krótkie cięcia w bok; mistrz (`Humans_Rapier_ST3`) – lewa ręka za plecami, bardzo szybkie pchnięcia. W OpenGothic tego nie ma.
 - **Uwaga:** zakładka „Umiejętności” narzędzia z menu modów zmienia poziom i zakłada nakładki `HUMANS_1HST1/ST2` – zastępują one nakładki szpady NB, więc test trzeba robić bez niej (poziom ze skryptów, broń założona na nowo).
 - **Wynik z logu (14.11.2026):** bohater ma naprawdę 6% broni jednoręcznej (`hit1h=6`), więc skrypty NB słusznie zakładają szpadzie poziom amatora (`Humans_Pirate.mds` – wczytuje się). „Mistrz” z modu testowego („Test umiejętności broni”) zmienia tylko poziom talentu i zakłada zwykłe nakładki miecza `HUMANS_1HST1/ST2` – w logu przy ciosach: `HUMANS_1HST2.MDS … Humans_Pirate.mds`, czyli mieszanka szpady amatora i zwykłego miecza („prawie, ale nie do końca”). Animacje mistrza szpady (`Humans_Rapier_ST3`) NB zakłada dopiero przy `HITCHANCE[1]` ≥ 90 (60 – wojownik `ST2`).
-- **Przy okazji:** brak dźwięków `woosh_01/02.wav`, `inv_open/close.wav` – w logu `Union.vdf` się nie wczytuje („Detected compressed VDF – build ZenKit with ZK_ENABLE_ZIPPED_VDF=ON”). To archiwum pluginu NB z jego zasobami (dźwięki, możliwe że też smugi ciosów).
 - **Diagnostyka:** w `log.txt` linie `[anim] hero overlay +NAZWA` (z `NOT LOADED`, gdy plik animacji się nie wczytał) i `[anim] hero attack NAZWA comb=… comboLen=… hit1h=… overlays: …` – która animacja ciosu jest odtwarzana i z jakimi nakładkami.
 
 ### 48. Mod „Test umiejętności broni” przerobiony pod NB – ✅ (14.11.2026)
 - **Pliki:** `mods/test-umiejetnosci-broni/index.js` (podmienić `index.js` w folderze tego moda; `manifest.json` bez zmian)
 - **Przyczyna:** mod zmieniał tylko poziom talentu (`Npc_SetTalentSkill`), a silnik dokładał zwykłe nakładki `HUMANS_1HST1/ST2`. NB wybiera animacje według procentu trafienia, więc procent zostawał (6%), a nakładki miecza mieszały się z animacją szpady amatora.
 - **Teraz:** przyciski poziomów ustawiają procent (Amator 10%, 30%, 60%, Mistrz 90%) przez `B_RaiseFightTalent` – jak u nauczyciela (procent „prawdziwy” w AIVAR 84–87, % trafienia, poziom talentu, `RX_LastAnim`) – i od razu wołają `RX_ApplyAnim_Weapons(hero, -1)`, więc skrypt NB zakłada właściwe animacje (szpada, szabla, miecz, tarcza, broń dwuręczna…). Pokazuje procent i poziom NB. Wytrzymałość w jednostkach gry (×10, jak pasek i statystyki), kroki ±10/±100. Komenda `tskill` przyjmuje procent (0/1/2 = 10/30/90%).
-
-### 49. Archiwum pluginu NB `Union.vdf` się nie wczytywało (brak dźwięków zamachu, ekwipunku…) – 🧪 (14.11.2026)
-- **Pliki:** `CMakeLists.txt` (główny plik projektu – podmienić)
-- **Przyczyna:** `Union.vdf` jest skompresowane (format ZippedStream Uniona); ZenKit był budowany bez tego (`ZK_ENABLE_ZIPPED_VDF=OFF`) – w logu „Detected compressed VDF (build ZenKit with ZK_ENABLE_ZIPPED_VDF=ON…)” i brak `woosh_01/02.wav`, `inv_open/close.wav`.
-- **Poprawka:** ZenKit dostaje obsługę skompresowanych VDF (`_ZK_WITH_ZIPPED_VDF`) z biblioteką miniz OpenGothic (`lib/miniz`). Samo `ZK_ENABLE_ZIPPED_VDF=ON` pobierałoby w czasie budowania drugą kopię miniz i tworzyło drugi cel `miniz` – konflikt z celem OpenGothic. Sprawdzone: `Stream.cc` i `Vfs.cc` ZenKita kompilują się z tą definicją i miniz 2.2.0 z projektu.
-- **Smugi ciosów:** do zbadania po wczytaniu `Union.vdf` (w DLL jest ślad osobnej funkcji „trails”: `RX_RT_TRAILS_MENU_CHECK`).
 
 ## Do zrobienia
 
