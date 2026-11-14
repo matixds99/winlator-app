@@ -342,6 +342,13 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - paski są częścią edytora HUD (Ustawienia → edycja HUD), jak przyciski: przeciągnięcie przesuwa pasek, stuknięcie zmienia rozmiar (5 kroków), przytrzymanie ukrywa/pokazuje; RESET przywraca miejsca domyślne. Zapisywane w tej samej sekcji co przyciski (`bar_hp`, `bar_stamina`, `bar_mana`). Paski nie odpychają przycisków (mogą na nich leżeć). Pasek wytrzymałości jest w edytorze tylko w modzie, który go ma (NB), pokazany jako pełny.
 - Zrobione w silniku, nie w JS: paski rysuje okno gry, a mody JS nie mają do nich dostępu.
 
+### 43. Bohater z mistrzem walki bronią jednoręczną miał animacje amatora (szpada bandyty) – 🧪 (14.11.2026)
+- **Pliki:** `common/game/gamescript.cpp`
+- **Jak to działa w NB:** broń przy zakładaniu ustawia swój typ (`EQUIP_1H_LIGHT_DEX` → szpada, `EQUIPEDINDEX_CHIEF`) i woła `RX_ApplyAnim_Weapons(hero, -2)` – poziom animacji to `RX_LastAnim_1h/2h`. Ten poziom gracz wybiera w szybkim panelu pluginu (`RX_QuickPanel_ChangeAnim`: amator/wojownik/…/mistrz, do poziomu talentu); -1 znaczy „według talentu” (`HITCHANCE` ≥ 30/60/90). Dla szpady poziom 0 to `Humans_Pirate` (amator), 3 to `Humans_Rapier_ST3`.
+- **Przyczyna:** w OpenGothic nie ma szybkiego panelu, a `RX_LastAnim_1h` zostało na 0 (amator) – np. z początku gry albo z nauki przez `B_AddFightSkill_NoAni`, która go nie zmienia. Każda broń dostawała więc animacje amatora, mimo mistrza.
+- **Poprawka:** co 100 ms, gdy `RX_LastAnim_1h/2h` = 0, a talent bohatera jest co najmniej na poziomie wojownika (≥ 30%), wraca na -1 („według talentu”) i ustawia `DoCheckFightSkill1h/2h`; `B_CheckMenuOption` (zaraz, przy schowanej broni) zakłada animacje poziomu talentu i zapisuje poziom (1–3). Działa dla wszystkich typów broni (miecze, szpady, szable, tarcze, dwuręczne, włócznie, kostury, halabardy).
+- **Ograniczenie:** bez szybkiego panelu nie da się wybrać niższego poziomu niż talent (w NB można było) – do zrobienia osobno, jeśli potrzebne.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

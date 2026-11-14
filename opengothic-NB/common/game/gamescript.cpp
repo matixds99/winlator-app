@@ -3031,6 +3031,31 @@ void GameScript::tick(uint64_t dt) {
     st.nextMoveset = tickCount()+100;
     auto* sepSym = vm.find_symbol_by_name("GIL_SEPERATOR_HUM");
     NbMoveset::tick(*this,world(),(sepSym!=nullptr ? sepSym->get_int() : 21));
+
+    // NB fix 43: the level of the animations of the weapons of the hero. RX_LastAnim_1h/2h is the level that the
+    // player chose in the quick panel of the plugin (RX_QuickPanel_ChangeAnim: 1 fighter, 2 ... 3 master), -1 is
+    // "by the talent". There is no quick panel here: a 0 (amateur) stayed from the start of the game and every
+    // weapon took the animations of an amateur, also of a master. With the talent learned it goes back to -1 and
+    // B_CheckMenuOption (DoCheckFightSkill1h/2h) puts on the animations of the level of the talent.
+    if(auto* pl = world().player()) {
+      bool changed = false;
+      const auto autoLevel = [&](std::string_view lastAnim, std::string_view check, int talent) {
+        auto* v = vm.find_symbol_by_name(lastAnim);
+        auto* c = vm.find_symbol_by_name(check);
+        if(v==nullptr || c==nullptr || v->is_member() || c->is_member() ||
+           v->type()!=zenkit::DaedalusDataType::INT || c->type()!=zenkit::DaedalusDataType::INT)
+          return;
+        if(v->get_int()==0 && pl->handle().hitchance[talent]>=30) {
+          v->set_int(-1);
+          c->set_int(1);
+          changed = true;
+          }
+        };
+      autoLevel("RX_LASTANIM_1H","DOCHECKFIGHTSKILL1H",TALENT_1H);
+      autoLevel("RX_LASTANIM_2H","DOCHECKFIGHTSKILL2H",TALENT_2H);
+      if(changed)
+        st.nextMenuCheck = 0;   // B_CheckMenuOption at the next frame
+      }
     }
 
   // the timer of 1000 ms of the plugin: RX_Main_CycleTrigger, the next second b_gettime
