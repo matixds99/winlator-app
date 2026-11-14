@@ -267,8 +267,9 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Pliki:** `common/world/objects/npc.cpp`
 - Każdy potwór walczący pazurami/kłami odskakuje przed zamachem bohatera dopiero po 2 trafieniach od poprzedniego odskoku (dotąd tylko ścierwojad). Dotyczy zwierząt, które mają odskok w swojej taktyce (`FIGHT.DAT`, `FA_ENEMY_PREHIT`): wilk (odskok/unik), krwiopijca, waran, szczur, zębacz, cieniostwór, harpia, jaszczurka, aligator, niedźwiedź, gargulec, smok… Kretoszczur, goblin, golem nie odskakują – u nich nic się nie zmienia.
 
-### 35. Style walki NPC z pluginu NB wg gildii (bandyci, najemnicy, straż, paladyni, łowcy smoków, piraci, banici) – 🧪 (14.11.2026)
+### 35. Style walki NPC z pluginu NB wg gildii (bandyci, najemnicy, straż, paladyni, łowcy smoków, piraci, banici) – ✅ (14.11.2026)
 - **Pliki:** `common/game/gamescript.cpp`
+- **Sprawdzone (14.11.2026):** animacje broni naprawione i zweryfikowane testami w konsoli (mod „Test umiejętności broni”: poziomy 30/60/90%, szpada, szabla, miecz).
 - Wraca mechanizm z poprawki 29 (co 100 ms, wróg w pobliżu, broń w ręku, nowe losowanie po 4–8 s), ale **tylko dla gildii z własną tabelą w pluginie** – postacie bez gildii (Lares, VLK, BAU…) zostają przy stylach z poprawki 23, bo te działają dobrze.
 - **Bandyci, jedna ręka (UNION_ABI.DLL 0x1024AD00):**
   - Nestor, Franco, Esteban: topór → 1hST1–3 (z tarczą Shield_ST1–3); tarcza → Shield_ST2–4; rapier → Rapier_ST1–3; inaczej 1hST1–3;
@@ -341,25 +342,6 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - przy włączonych liczbach (ustawienia nakładki) nad paskiem wytrzymałości jest `wartość/maks.` – tak, jak liczą skrypty NB (`ATR_STAMINA` / `ATR_STAMINA_MAX*10`), licznik doświadczenia stoi nad nim;
   - paski są częścią edytora HUD (Ustawienia → edycja HUD), jak przyciski: przeciągnięcie przesuwa pasek, stuknięcie zmienia rozmiar (5 kroków), przytrzymanie ukrywa/pokazuje; RESET przywraca miejsca domyślne. Zapisywane w tej samej sekcji co przyciski (`bar_hp`, `bar_stamina`, `bar_mana`). Paski nie odpychają przycisków (mogą na nich leżeć). Pasek wytrzymałości jest w edytorze tylko w modzie, który go ma (NB), pokazany jako pełny.
 - Zrobione w silniku, nie w JS: paski rysuje okno gry, a mody JS nie mają do nich dostępu.
-
-### 43. Bohater z mistrzem walki bronią jednoręczną miał animacje amatora (szpada bandyty) – 🧪 (14.11.2026)
-- **Pliki:** `common/game/gamescript.cpp`
-- **Jak to działa w NB:** broń przy zakładaniu ustawia swój typ (`EQUIP_1H_LIGHT_DEX` → szpada, `EQUIPEDINDEX_CHIEF`) i woła `RX_ApplyAnim_Weapons(hero, -2)` – poziom animacji to `RX_LastAnim_1h/2h`. Ten poziom gracz wybiera w szybkim panelu pluginu (`RX_QuickPanel_ChangeAnim`: amator/wojownik/…/mistrz, do poziomu talentu); -1 znaczy „według talentu” (`HITCHANCE` ≥ 30/60/90). Dla szpady poziom 0 to `Humans_Pirate` (amator), 3 to `Humans_Rapier_ST3`.
-- **Przyczyna:** w OpenGothic nie ma szybkiego panelu, a `RX_LastAnim_1h` zostało na 0 (amator) – np. z początku gry albo z nauki przez `B_AddFightSkill_NoAni`, która go nie zmienia. Każda broń dostawała więc animacje amatora, mimo mistrza.
-- **Poprawka:** co 100 ms, gdy `RX_LastAnim_1h/2h` = 0, a talent bohatera jest co najmniej na poziomie wojownika (≥ 30%), wraca na -1 („według talentu”) i ustawia `DoCheckFightSkill1h/2h`; `B_CheckMenuOption` (zaraz, przy schowanej broni) zakłada animacje poziomu talentu i zapisuje poziom (1–3). Działa dla wszystkich typów broni (miecze, szpady, szable, tarcze, dwuręczne, włócznie, kostury, halabardy).
-- **Ograniczenie:** bez szybkiego panelu nie da się wybrać niższego poziomu niż talent (w NB można było) – do zrobienia osobno, jeśli potrzebne.
-
-### 44. Szable (bronie zręczności) miały animacje zwykłego miecza zamiast szabli – 🧪 (14.11.2026)
-- **Pliki:** `common/game/nboptions.h`
-- **Przyczyna:** szabla (np. piracki kordelas – `ITMW_PIRATENSAEBEL`, `EQUIP_1H_02_DEX`) ustawia `EQUIPEDINDEX_DEXSWORD`, a `RX_ApplyAni_1H_DexSword` zakłada animacje szabli (`humans_1hDexST1–3`) tylko gdy `Menu_ReadInt("AST","IsEnabledDexSwordAnims")` ≠ 0 – inaczej przechodzi na zwykły miecz (`humans_1hST1–3`). Plugin czyta tę opcję poza swoim menu z domyślnym 1 (`zCOption::ReadInt`, 0x10280A31), więc w NB zawsze była włączona; w OpenGothic klucza nie było w Gothic.ini → 0.
-- **Poprawka:** `IsEnabledDexSwordAnims = 1` dopisane do domyślnych opcji NB (zapisuje się do Gothic.ini, gdy klucza nie ma).
-- Uwaga: skrypty NB przy mistrzu zakładają `humans_1hDexST2`, a przy 60–89% `humans_1hDexST3` (zamienione w skryptach moda) – tak samo jak w oryginale.
-
-### 45. Nauka wytrzymałości u Laresa – zero reakcji; różne liczby wytrzymałości na HUD i w statystykach – 🧪 (14.11.2026)
-- **Pliki:** `common/game/gamescript.cpp`, `common/mainwindow.cpp`
-- **Przyczyna (nauka):** `B_TeachStamina` przy każdej odmowie (za mało punktów nauki, za mało złota, maksimum, „ulepszaj po +1”) wypisuje komunikat przez `AI_PrintItemInfo` albo `AI_PrintClr` – funkcje pluginu, których nie było, więc odmowa była cicha. Tak samo milczało kilkanaście innych komunikatów NB.
-- **Poprawka:** komunikaty pluginu na ekranie: `AI_PrintItemInfo`, `AI_PrintClr`, `AI_PrintCraft`, `AI_FastPrint_1/2`, `AI_PrintExp`, `AI_PrintMiddle`, `AI_PrintBottomRed`, `AI_PrintBonusItem`, `AI_PrintBonusLong`, `PrintWinC`, `AI_PrintPos`, `PrintScreenColor` (+ `AI_PrintPos_Clear`, `AI_PrintClrScreen` bez działania). Teraz widać, dlaczego nauka się nie udaje.
-- **Liczby wytrzymałości:** skrypty trzymają maksimum w jednostkach ×1 (`ATR_STAMINA_MAX`, np. 10 → 100 w grze), a bieżącą wartość ×10 (`ATR_STAMINA`); NB pokazuje wszędzie ×10. Pasek HUD brał liczby z ostatniego `Bar_SetValue/SetMaxRange` – teraz liczy je wprost ze zmiennych, tak samo jak okno statystyk. Narzędzie deweloperskie z menu modów pokazuje surowe `ATR_STAMINA_MAX` (to nie jest plik z tego repozytorium).
 
 ### 46. Broń z wymaganą wytrzymałością nie dawała się założyć („Za mało wytrzymałości…” przy 780/650) – ✅ (14.11.2026)
 - **Pliki:** `common/world/objects/npc.cpp`
