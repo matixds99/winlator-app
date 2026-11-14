@@ -301,6 +301,12 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - `gamemusic.cpp`: przy pierwszym wywołaniu w wątku miksowania (funkcja generująca muzykę jest wywoływana właśnie w nim) podnosi jego priorytet do priorytetu audio Androida (−16, jak `THREAD_PRIORITY_AUDIO`; gdy się nie da, −10);
   - `main.cpp`: przed pierwszym użyciem OpenAL zapisuje `alsoft.conf` (w folderze gry, obok `log.txt` – wersja `main.cpp` z wyborem folderu gry) z `period_size = 960`, `periods = 6` i wskazuje go zmienną `ALSOFT_CONF` – bufor 120 ms zamiast 60 ms.
 - **Do sprawdzenia:** czy dźwięki w grze (ciosy, kroki) nie wydają się spóźnione – wtedy zmniejszyć `periods` do 4–5.
+- **Test:** zacinki zostały → poprawka 38.
+
+### 38. Zacinanie się dźwięku – muzyka ładowana w osobnym wątku, też dla domyślnej muzyki OpenGothic – 🧪 (14.11.2026)
+- **Pliki:** `common/gamemusic.cpp` (zmieniony plik z projektu – podmienić)
+- **Przyczyna:** OpenGothic ma dwa silniki muzyki: „OpenGothic” (domyślny, `soundProviderIndex=0`) i „GothicKit”. Poprawka 36 działała tylko dla GothicKit, a domyślny dalej ładował muzykę motywu (`Resources::loadDxMusic`) w wątku dźwięku – pod blokadą zasobów, którą trzyma wczytywanie świata (im większy mod, tym dłużej). Do tego ekran wczytywania co klatkę zleca motyw `SYS_Loading`, a poprawka 36 ładowała go wtedy od nowa co klatkę.
+- **Poprawka:** oba silniki ładują muzykę nowego motywu w osobnym wątku. Wątek dźwięku zaczyna motyw dopiero, gdy jest załadowany (do tego czasu gra poprzednia muzyka albo cisza – efekty grają dalej). Motyw, który już gra, nie jest ładowany ponownie. Ani wątek gry, ani wątek dźwięku nie czekają na blokadę zasobów.
 
 ## Do zrobienia
 

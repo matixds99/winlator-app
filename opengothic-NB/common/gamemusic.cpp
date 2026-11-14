@@ -12,6 +12,12 @@
 #include <atomic>
 #include <cstring>
 #include <cstdio>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
 #if defined(__ANDROID__)
 #include <sys/resource.h>
 #include <unistd.h>
@@ -164,6 +170,67 @@ struct GameMusic::RecordedMusic : Tempest::SoundProducer {
 #endif
   };
 
+// NB fix 38: the music of a theme is loaded on a thread of its own. Loading it needs the lock of the resources, which the
+// loading of the world holds for a long time: in the callback of OpenAL (fix 36 before) the whole sound waited, on the
+// thread of the game the loading screen would wait. The callback starts the new theme when it is loaded.
+struct ThemeLoader {
+  ~ThemeLoader() { finish(); }
+
+  void start(std::function<void(const std::string&)> fn) {
+    load = std::move(fn);
+    th   = std::thread([this]{ run(); });
+    }
+
+  void finish() {
+    {
+      std::lock_guard<std::mutex> g(sync);
+      stop = true;
+    }
+    cv.notify_all();
+    if(th.joinable())
+      th.join();
+    }
+
+  void request(const std::string& file) {
+    {
+      std::lock_guard<std::mutex> g(sync);
+      if(want==file || busy==file)
+        return;
+      want = file;
+    }
+    cv.notify_one();
+    }
+
+  bool isLoading(const std::string& file) {
+    std::lock_guard<std::mutex> g(sync);
+    return want==file || busy==file;
+    }
+
+  private:
+    void run() {
+      std::unique_lock<std::mutex> l(sync);
+      while(true) {
+        cv.wait(l,[this]{ return stop || !want.empty(); });
+        if(stop)
+          return;
+        busy = std::move(want);
+        want.clear();
+        const std::string file = busy;
+        l.unlock();
+        load(file);     // stores the result before busy is cleared: isReady sees one or the other
+        l.lock();
+        busy.clear();
+        }
+      }
+
+    std::function<void(const std::string&)> load;
+    std::mutex              sync;
+    std::condition_variable cv;
+    std::string             want, busy;
+    bool                    stop = false;
+    std::thread             th;
+  };
+
 struct GameMusic::MusicProvider : Tempest::SoundProducer {
   using Tempest::SoundProducer::SoundProducer;
 
@@ -193,9 +260,7 @@ struct GameMusic::MusicProvider : Tempest::SoundProducer {
       }
 
     void playTheme(const zenkit::IMusicTheme &theme, GameMusic::Tags tags) {
-      // NB fix 36: the heavy loading of the music (the segment and its DLS instruments) on the thread of the game, not
-      // in the callback of OpenAL: there it waited for the lock of the resources the loading of the world held and the
-      // whole sound (music and effects) stopped for a moment - the stutter on the loading screen
+      // NB fix 36/38: the music of the theme is loaded ahead, on the thread of the loader (see ThemeLoader)
       preload(theme);
       std::lock_guard<std::recursive_mutex> guard(pendingSync);
       reloadTheme  = !pendingMusic || pendingMusic->file != theme.file;
@@ -206,12 +271,16 @@ struct GameMusic::MusicProvider : Tempest::SoundProducer {
 
   protected:
     virtual void preload(const zenkit::IMusicTheme& /*theme*/) {}
+    // false: the music of the theme is still being loaded - the theme stays pending, the callback asks again (fix 38)
+    virtual bool isReady(const std::string& /*file*/) { return true; }
 
     bool updateTheme(zenkit::IMusicTheme& theme, Tags& tags) {
       bool reloadTheme = false;
 
       std::lock_guard<std::recursive_mutex> guard(pendingSync);
       if(hasPending && pendingMusic && enable.load()) {
+        if(this->reloadTheme && !isReady(pendingMusic->file))
+          return false;
         hasPending  = false;
         reloadTheme = this->reloadTheme;
         theme       = this->pendingMusic.value();
@@ -258,7 +327,50 @@ struct GameMusic::MusicProvider : Tempest::SoundProducer {
   };
 
 struct GameMusic::OpenGothicMusicProvider : GameMusic::MusicProvider {
-  using GameMusic::MusicProvider::MusicProvider;
+  // NB fix 38: the music provider of OpenGothic (the default one, soundProviderIndex=0) loaded the patterns of the theme
+  // (Resources::loadDxMusic, under the lock of the resources) in the callback of OpenAL - fix 36 was only for GothicKit
+  OpenGothicMusicProvider(uint16_t rate, uint16_t channels) : GameMusic::MusicProvider(rate, channels) {
+    loader.start([this](const std::string& file) {
+      std::optional<Dx8::PatternList> p;
+      try {
+        p = Resources::loadDxMusic(file);
+        }
+      catch(std::exception&) {
+        p.reset();
+        }
+      std::lock_guard<std::mutex> g(preSync);
+      prePattern = std::move(p);
+      preFile    = file;
+      });
+    }
+
+  ~OpenGothicMusicProvider() override {
+    loader.finish();
+    }
+
+  void preload(const zenkit::IMusicTheme& theme) override {
+    if(theme.file.empty())
+      return;
+    {
+      std::lock_guard<std::mutex> g(preSync);
+      // the loading screen asks for SYS_Loading every frame: not loaded again while it plays
+      if(theme.file==playingFile || preFile==theme.file)
+        return;
+    }
+    loader.request(theme.file);
+    }
+
+  bool isReady(const std::string& file) override {
+    if(file.empty() || loader.isLoading(file))
+      return file.empty();
+    {
+      std::lock_guard<std::mutex> g(preSync);
+      if(preFile==file)
+        return true;
+    }
+    loader.request(file);
+    return false;
+    }
 
   void renderSound(int16_t *out, size_t n) override {
     boostAudioThread();
@@ -283,7 +395,21 @@ struct GameMusic::OpenGothicMusicProvider : GameMusic::MusicProvider {
 
     try {
       if(/*reloadTheme*/true) {
-        Dx8::PatternList p = Resources::loadDxMusic(theme.file);
+        std::optional<Dx8::PatternList> pre;
+        bool                            loaded = false;
+        {
+          std::lock_guard<std::mutex> g(preSync);
+          if(preFile==theme.file) {
+            loaded = true;
+            pre    = std::move(prePattern);
+            prePattern.reset();
+            preFile.clear();
+            }
+          playingFile = theme.file;
+        }
+        if(loaded && !pre.has_value())
+          throw std::runtime_error("unable to load sound");
+        Dx8::PatternList p = pre.has_value() ? std::move(*pre) : Resources::loadDxMusic(theme.file);
 
         Dx8::Music m;
         m.addPattern(p);
@@ -307,6 +433,10 @@ struct GameMusic::OpenGothicMusicProvider : GameMusic::MusicProvider {
 
   void stopTheme() override {
     GameMusic::MusicProvider::stopTheme();
+    {
+      std::lock_guard<std::mutex> g(preSync);
+      playingFile.clear();
+    }
     }
 
   static Dx8::DMUS_EMBELLISHT_TYPES computeEmbellishment(zenkit::MusicTransitionEffect ef) {
@@ -331,6 +461,11 @@ struct GameMusic::OpenGothicMusicProvider : GameMusic::MusicProvider {
 
   private:
     Dx8::Mixer mix;
+    std::mutex                      preSync;
+    std::optional<Dx8::PatternList> prePattern;  // empty with preFile set: the loading failed
+    std::string                     preFile;
+    std::string                     playingFile;
+    ThemeLoader                     loader;
   };
 
 static std::pair<DmTiming, DmEmbellishmentType> computeEmbellishmentAndTiming(const zenkit::MusicTransitionEffect effect, const zenkit::MusicTransitionType type) {
@@ -389,9 +524,18 @@ struct GameMusic::GothicKitMusicProvider : GameMusic::MusicProvider {
     if(rv != DmResult_SUCCESS) {
       Log::e("Unable to create DmPerformance object. Out of memory?");
       }
+    loader.start([this](const std::string& file) {
+      DmSegment* sgt = Resources::loadMusicSegment(file.c_str());
+      std::lock_guard<std::mutex> g(preSync);
+      if(preSgt!=nullptr)
+        DmSegment_release(preSgt);
+      preSgt  = sgt;
+      preFile = file;
+      });
     }
 
   ~GothicKitMusicProvider() override {
+    loader.finish();
     DmPerformance_release(performance);
     if(preSgt!=nullptr)
       DmSegment_release(preSgt);
@@ -402,17 +546,23 @@ struct GameMusic::GothicKitMusicProvider : GameMusic::MusicProvider {
       return;
     {
       std::lock_guard<std::mutex> g(preSync);
-      if(preSgt!=nullptr && preFile==theme.file)
+      // the loading screen asks for SYS_Loading every frame: not loaded again while it plays (NB fix 38)
+      if(theme.file==playingFile || preFile==theme.file)
         return;
     }
-    DmSegment* sgt = Resources::loadMusicSegment(theme.file.c_str());
-    if(sgt==nullptr)
-      return;
-    std::lock_guard<std::mutex> g(preSync);
-    if(preSgt!=nullptr)
-      DmSegment_release(preSgt);
-    preSgt  = sgt;
-    preFile = theme.file;
+    loader.request(theme.file);
+    }
+
+  bool isReady(const std::string& file) override {
+    if(file.empty() || loader.isLoading(file))
+      return file.empty();
+    {
+      std::lock_guard<std::mutex> g(preSync);
+      if(preFile==file)
+        return true;
+    }
+    loader.request(file);
+    return false;
     }
 
   void renderSound(int16_t *out, size_t n) override {
@@ -439,16 +589,19 @@ struct GameMusic::GothicKitMusicProvider : GameMusic::MusicProvider {
     auto effect = computeTransitionEffect(tags, currentTags, theme.transtype);
     auto [timing, embellishment] = computeEmbellishmentAndTiming(effect, theme.transsubtype);
 
-    DmSegment* sgt = nullptr;
+    DmSegment* sgt    = nullptr;
+    bool       loaded = false;
     {
       std::lock_guard<std::mutex> g(preSync);
-      if(preSgt!=nullptr && preFile==theme.file) {
-        sgt    = preSgt;    // the ownership goes to the callback, released below
+      if(preFile==theme.file) {
+        loaded = true;
+        sgt    = preSgt;    // the ownership goes to the callback, released below (nullptr: the loading failed)
         preSgt = nullptr;
         preFile.clear();
         }
+      playingFile = theme.file;
     }
-    if(sgt==nullptr)
+    if(!loaded)
       sgt = Resources::loadMusicSegment(theme.file.c_str());
     DmResult rv = DmPerformance_playTransition(performance, sgt, embellishment, timing);
     if(rv != DmResult_SUCCESS) {
@@ -463,6 +616,10 @@ struct GameMusic::GothicKitMusicProvider : GameMusic::MusicProvider {
 
   void stopTheme() override {
     GameMusic::MusicProvider::stopTheme();
+    {
+      std::lock_guard<std::mutex> g(preSync);
+      playingFile.clear();
+    }
     DmPerformance_playTransition(performance, nullptr, DmEmbellishment_NONE, DmTiming_INSTANT);
     }
 
@@ -517,6 +674,8 @@ struct GameMusic::GothicKitMusicProvider : GameMusic::MusicProvider {
     std::mutex     preSync;
     DmSegment*     preSgt = nullptr;
     std::string    preFile;
+    std::string    playingFile;
+    ThemeLoader    loader;
   };
 
 static constexpr int PROVIDER_UNINITIALIZED = -1;
