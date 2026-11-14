@@ -1,6 +1,7 @@
 #include "gamescript.h"
 #include "nboptions.h"
 #include "nbiteminfo.h"
+#include "nbbars.h"
 
 #include <Tempest/Log>
 #include <Tempest/SoundEffect>
@@ -1407,6 +1408,66 @@ void GameScript::initCommon() {
         aiOutOrderId = 0;
         pl->aiPush(AiQueue::aiProcessInfo(*pl));
         }
+      });
+
+    // NB fix 41: the stamina. The scripts take it while sprinting only when the run is played (RX_IsRunAniActive), while
+    // diving by the water level, and they show it in a bar of the plugin (Bar_*)
+    const auto aniActive = [](Npc& npc, std::string_view name) {
+      std::string up(name);
+      for(auto& c:up)
+        c = char(std::toupper(static_cast<unsigned char>(c)));
+      for(auto& l:npc.animationLayers())
+        if(l.name==up)
+          return true;
+      return false;
+      };
+    bindNb("RX_ISANIACTIVE", [this,aniActive](std::shared_ptr<zenkit::INpc> npcRef, std::string_view name) -> int32_t {
+      auto npc = findNpc(npcRef);
+      return npc!=nullptr && aniActive(*npc,name) ? 1 : 0;
+      });
+    bindNb("NPC_ISANIMATIONACTIVE", [this,aniActive](std::shared_ptr<zenkit::INpc> npcRef, std::string_view name) -> int32_t {
+      auto npc = findNpc(npcRef);
+      return npc!=nullptr && aniActive(*npc,name) ? 1 : 0;
+      });
+    bindNb("RX_ISRUNANIACTIVE", [this](std::shared_ptr<zenkit::INpc> npcRef) -> int32_t {
+      // the loop of the run in any weapon mode: S_RUNL, S_1HRUNL, S_FISTRUNL, S_BOWRUNL, S_MAGRUNL...
+      auto npc = findNpc(npcRef);
+      if(npc==nullptr)
+        return 0;
+      for(auto& l:npc->animationLayers())
+        if(l.name.rfind("S_",0)==0 && l.name.find("RUNL")!=std::string::npos)
+          return 1;
+      return 0;
+      });
+    bindNb("NPC_GETWATERLEVEL", [this](std::shared_ptr<zenkit::INpc> npcRef) -> int32_t {
+      // WATER_NONE 0, WATER_FEET 1, WATER_DIVE 2
+      auto npc = findNpc(npcRef);
+      if(npc==nullptr)
+        return 0;
+      if(npc->isDive())
+        return 2;
+      return npc->isSwim() || npc->isInWater() ? 1 : 0;
+      });
+    NbBars::reset();
+    bindNb("BAR_SETSHOW", [](int32_t bar, int32_t show) {
+      if(auto b = NbBars::at(bar))
+        b->show = show!=0;
+      });
+    bindNb("BAR_GETSHOW", [](int32_t bar) -> int32_t {
+      auto b = NbBars::at(bar);
+      return b!=nullptr && b->show ? 1 : 0;
+      });
+    bindNb("BAR_SETBARTEX", [](int32_t bar, std::string_view tex) {
+      if(auto b = NbBars::at(bar))
+        b->tex = std::string(tex);
+      });
+    bindNb("BAR_SETVALUE", [](int32_t bar, int32_t value) {
+      if(auto b = NbBars::at(bar))
+        b->value = value;
+      });
+    bindNb("BAR_SETMAXRANGE", [](int32_t bar, int32_t range) {
+      if(auto b = NbBars::at(bar))
+        b->maxRange = range;
       });
 
     {

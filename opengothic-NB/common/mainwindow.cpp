@@ -10,6 +10,8 @@
 #include <Tempest/Application>
 #include <Tempest/Log>
 
+#include <algorithm>
+
 #include "ui/dialogmenu.h"
 #include "ui/menuroot.h"
 #include "ui/stacklayout.h"
@@ -29,6 +31,7 @@
 #include "game/savestore.h"
 #include "game/combatfx.h"
 #include "game/worldmarkers.h"
+#include "game/nbbars.h"
 #include "scripting/gameapi.h"
 #include "utils/dbgpainter.h"
 
@@ -49,6 +52,16 @@ static float progressTexScale(const Tempest::Texture2d* loadBox) {
 static zenkit::DaedalusSymbol* nbSprintFn() {
   auto* w = Gothic::inst().world();
   return w==nullptr ? nullptr : w->script().getVm().find_symbol_by_name("B_HOTKEY_SPRINT");
+  }
+
+/// NB fix 41: the bar of the stamina of New Balance (filled by the scripts with Bar_*), nullptr when it is hidden
+static const NbBars::Bar* nbStaminaBar(const Tempest::Texture2d*& tex, float& value) {
+  auto* b = NbBars::at(NbBars::Stamina);
+  if(b==nullptr || !b->show || b->maxRange<=0 || Gothic::inst().world()==nullptr)
+    return nullptr;
+  tex   = Resources::loadTexture(b->tex.empty() ? std::string("BAR_Stamina.tga") : b->tex);
+  value = std::clamp(float(b->value)/float(b->maxRange),0.f,1.f);
+  return tex!=nullptr ? b : nullptr;
   }
 
 static bool nbToggleSprint() {
@@ -333,12 +346,23 @@ void MainWindow::paintEvent(PaintEvent& event) {
             drawBar(p,barHp, 10, h()-10, hp, AlignLeft | AlignBottom);
           if(showManaBar)
             drawBar(p,barMana, w()-10, h()-10, mp, AlignRight | AlignBottom);
+          bool swimDrawn = false;
           if(showSwimBar) {
             auto     v  = float(pl->diveTimeLimit())/1000.f;
             if(v>0) {
               auto t = float(pl->diveTime())/1000.f;
               drawBar(p,barMisc,w()/2,h()-10, (v-t)/(v), AlignHCenter | AlignBottom);
+              swimDrawn = true;
               }
+            }
+          // NB fix 41: the stamina in the middle, above the bar of the air when it is there
+          const Tempest::Texture2d* stTex = nullptr;
+          float                     stVal = 0;
+          if(nbStaminaBar(stTex,stVal)!=nullptr) {
+            const float scale = Gothic::interfaceScale(this);
+            const int   barW  = int(200.f*scale*float(std::min(w(),800))/800.f);
+            const int   barH  = barBack==nullptr ? 0 : int(float(barBack->h())*float(barW)/float(std::max(barBack->w(),1)));
+            drawBar(p,stTex,w()/2,h()-10-(swimDrawn ? barH+4 : 0),stVal,AlignHCenter | AlignBottom);
             }
           }
         }
@@ -999,6 +1023,14 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
 
   const int bh = barHeight(width);
   const int th = hudFont.textSize(hpText).h;
+
+  // NB fix 41: the stamina of New Balance in the middle, between the life and the mana
+  const Tempest::Texture2d* stTex = nullptr;
+  float                     stVal = 0;
+  const bool                stamina = nbStaminaBar(stTex,stVal)!=nullptr;
+  if(stamina)
+    drawBar(p,stTex,w()/2-width/2,y,width,stVal,AlignLeft | AlignBottom);
+
   if(numbers) {
     // centered over the bars (the text is above the frame, not in it)
     const int top = y-bh-2;
@@ -1007,8 +1039,10 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
       drawText(mpText,xr+(width-hudFont.textSize(mpText).w)/2,top);
     }
   if(xp) {
-    // between the bars, on the level of the frames
-    drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,y-(bh-th)/2);
+    // between the bars, on the level of the frames; above the stamina when it is shown
+    if(stamina)
+      drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,y-bh-2); else
+      drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,y-(bh-th)/2);
     }
   }
 #endif
