@@ -361,6 +361,11 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Poprawka:** komunikaty pluginu na ekranie: `AI_PrintItemInfo`, `AI_PrintClr`, `AI_PrintCraft`, `AI_FastPrint_1/2`, `AI_PrintExp`, `AI_PrintMiddle`, `AI_PrintBottomRed`, `AI_PrintBonusItem`, `AI_PrintBonusLong`, `PrintWinC`, `AI_PrintPos`, `PrintScreenColor` (+ `AI_PrintPos_Clear`, `AI_PrintClrScreen` bez działania). Teraz widać, dlaczego nauka się nie udaje.
 - **Liczby wytrzymałości:** skrypty trzymają maksimum w jednostkach ×1 (`ATR_STAMINA_MAX`, np. 10 → 100 w grze), a bieżącą wartość ×10 (`ATR_STAMINA`); NB pokazuje wszędzie ×10. Pasek HUD brał liczby z ostatniego `Bar_SetValue/SetMaxRange` – teraz liczy je wprost ze zmiennych, tak samo jak okno statystyk. Narzędzie deweloperskie z menu modów pokazuje surowe `ATR_STAMINA_MAX` (to nie jest plik z tego repozytorium).
 
+### 46. Broń z wymaganą wytrzymałością nie dawała się założyć („Za mało wytrzymałości…” przy 780/650) – 🧪 (14.11.2026)
+- **Pliki:** `common/world/objects/npc.cpp`
+- **Przyczyna:** warunki przedmiotów NB (`C_ITEM.COND_ATR`) wskazują poza zwykłymi atrybutami także zmienne pluginu: `AIVRX_NPC_ATR_BOW` (89), `_SHIELD` (90), `_CROSSBOW` (91), `_STAMINA` (92) – w skryptach 207 przedmiotów wymaga wytrzymałości, 43 łuku, 35 kuszy, 1 tarczy. `Npc::attribute` zwracał 0 dla indeksów ≥ `ATR_MAX`, więc każdy taki warunek był niespełniony.
+- **Poprawka:** dla 89–92 wartość to zmienna NB postaci (`RX_GetNpcVar`); wytrzymałość jest tam trzymana jako `ATR_STAMINA_MAX` (×1, `B_CheckMenuOption` ją synchronizuje), a warunki są ×10 jak wszystko w NB – więc ×10.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

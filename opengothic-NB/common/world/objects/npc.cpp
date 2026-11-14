@@ -1502,6 +1502,14 @@ void Npc::setRefuseTalk(uint64_t milis) {
 int32_t Npc::attribute(Attribute a) const {
   if(a<ATR_MAX)
     return hnpc->attribute[a];
+  // NB fix 46: the conditions of the items of New Balance (C_ITEM.COND_ATR) name also the variables of the plugin:
+  // AIVRX_NPC_ATR_BOW 89, _SHIELD 90, _CROSSBOW 91, _STAMINA 92 (RX_GetNpcVar). The stamina is kept there as
+  // ATR_STAMINA_MAX (x1, B_CheckMenuOption keeps it so), the conditions are x10 like everything shown by NB:
+  // "the stamina needed: 650" with 780 of stamina. Before every such item was refused ("not enough stamina").
+  if(89<=int32_t(a) && int32_t(a)<=92) {
+    const int32_t v = newBalanceGetNpcVar(int32_t(a));
+    return int32_t(a)==92 ? v*10 : v;
+    }
   return 0;
   }
 
