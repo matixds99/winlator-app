@@ -172,7 +172,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - każda zakładka bierze teraz to, co pokazuje, ze swojego przycisku w MENU.DAT (`EFFECTS MENU_ITEM_LIST_…` → `USERSTRING` listy), a nie z pozycji na ekranie,
   - w NB lista „FAILEDMISSIONS” (Zakończone zadania) pokazuje zadania o statusie 2 i 4, a lista „OLDMISSIONS” (Bestiariusz) status 3, tak jak w menu moda. Dla zwykłego Gothica II nic się nie zmienia.
 
-### 16. Niewidoczne zbroje paladynów (Lothar, Lord Andre – sama głowa) – 🔍 diagnostyka (12.11.2026)
+### 16. Niewidoczne zbroje paladynów (Lothar, Lord Andre – sama głowa) – diagnostyka zakończona, poprawka 39 (14.11.2026)
 - **Pliki:** `common/world/objects/npc.cpp`
 - **Co wiadomo:** Lord Andre nosi `ITAR_PAL_H_NPC` (model `Armor_Pal_H.asc`), Lothar zbroję paladyna `Armor_Pal_M.asc`. Pancerz straży (`WACHE_ARMOR_V2.asc`) działa. W logu nie ma `unable to load mesh` dla tych zbroi, więc model chyba się wczytuje, tylko się nie rysuje.
 - **Na razie:** do `log.txt` dopisuje się raz na każdy model zbroi linia `armor "…": …` (czy plik jest w archiwach, ile ma części skórowanych, tekstur i doczepianych elementów, rozmiar). Na jej podstawie zrobię właściwą poprawkę.
@@ -307,6 +307,17 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Pliki:** `common/gamemusic.cpp` (zmieniony plik z projektu – podmienić)
 - **Przyczyna:** OpenGothic ma dwa silniki muzyki: „OpenGothic” (domyślny, `soundProviderIndex=0`) i „GothicKit”. Poprawka 36 działała tylko dla GothicKit, a domyślny dalej ładował muzykę motywu (`Resources::loadDxMusic`) w wątku dźwięku – pod blokadą zasobów, którą trzyma wczytywanie świata (im większy mod, tym dłużej). Do tego ekran wczytywania co klatkę zleca motyw `SYS_Loading`, a poprawka 36 ładowała go wtedy od nowa co klatkę.
 - **Poprawka:** oba silniki ładują muzykę nowego motywu w osobnym wątku. Wątek dźwięku zaczyna motyw dopiero, gdy jest załadowany (do tego czasu gra poprzednia muzyka albo cisza – efekty grają dalej). Motyw, który już gra, nie jest ładowany ponownie. Ani wątek gry, ani wątek dźwięku nie czekają na blokadę zasobów.
+
+### 39. Paladyni bez zbroi (Lothar, Lord Andre – sama głowa): hełm zajmował miejsce zbroi – 🧪 (14.11.2026)
+- **Pliki:** `common/game/inventory.cpp`, `common/game/inventory.h` (zmienione pliki z projektu – podmienić), `common/world/objects/npc.cpp`
+- **Z logu (diagnostyka 16):** zbroja `Armor_Pal_M.asc` wczytuje się poprawnie (model i tekstury są), ale zaraz po niej ta sama postać zakłada `ItAr_Helm_Pal_NPC_NEW_01.3ds` – hełm. W skryptach hełm to też „zbroja” (`ITEM_KAT_ARMOR`), tylko z `wear = WEAR_HEAD`.
+- **Przyczyna:** Gothic ma dla hełmu osobne miejsce (węzeł `ZS_HELMET` na głowie), a zbroja na ciele zostaje. OpenGothic miał jedno miejsce na zbroję: hełm zdejmował zbroję i był rysowany zamiast ciała – zostawała sama głowa.
+- **Poprawka:**
+  - ekwipunek ma osobne miejsce na hełm (zbroja z `WEAR_HEAD`); zakładanie, zdejmowanie, ochrona i warunki działają jak przy zbroi;
+  - hełm wisi w węźle `ZS_HELMET` (gdy model go nie ma – na `BIP01 HEAD`) i nie znika przy uderzeniu;
+  - „najlepsza zbroja” nie wybiera hełmu;
+  - zapisy: hełm nie ma własnego wpisu w zapisie – odtwarza się z założonych przedmiotów (format zapisu bez zmian). W starych zapisach hełm siedział na miejscu zbroi: przenosi się na swoje miejsce, a NPC (nie bohater) dostaje z powrotem najlepszą zbroję z ekwipunku.
+- Usunięta diagnostyka zbroi z poprawki 16 (linie `armor "…"` w logu).
 
 ## Do zrobienia
 
