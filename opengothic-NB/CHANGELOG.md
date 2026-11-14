@@ -286,7 +286,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
   - banici (OUT, 0x1024D450/D6D0): wg szansy tarcze ST1–3, 1hST/1hDexST albo brak nakładki; dwie ręce – 2hST1/2hST3/AxeST2.
 - **Jeszcze nie:** szkielety (GIL_SKELETON) – bardzo długa tabela po nazwach szkieletów (rycerze z tarczą, kapitanowie, marynarze, mroczni wojownicy sfer…).
 
-### 36. Zacinanie się dźwięku na ekranie wczytywania – ⏸ nie pomogło samo (14.11.2026), zostaje razem z 37
+### 36. Zacinanie się dźwięku na ekranie wczytywania – ✅ razem z 38 (14.11.2026)
 - **Pliki:** `common/gamemusic.cpp` (zmieniony plik z projektu – podmienić)
 - **Z nagrania:** przez cały czas ekran wczytywania „KHORINIS”; w dźwięku między 5,5 a 10,5 s kilkanaście przerw po 0,1–0,6 s.
 - **Przyczyna:** muzykę (GothicKit/DirectMusic) generuje funkcja wywoływana przez OpenAL w jego wątku miksowania. Przy zmianie motywu ta funkcja sama ładowała segment muzyki razem z instrumentami (DLS) – pod blokadą zasobów, którą w tym czasie trzyma wczytywanie świata. Wątek OpenAL czekał, a z nim cały dźwięk (muzyka i efekty).
@@ -294,7 +294,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Jeśli dalej się zacina:** druga możliwa przyczyna to zajęty procesor w czasie wczytywania (wątek dźwięku nie dostaje czasu) – wtedy pomoże większy bufor OpenAL.
 - **Test:** zacinki zostały → poprawka 37.
 
-### 37. Zacinanie się dźwięku – priorytet wątku dźwięku i dłuższy bufor – 🧪 (14.11.2026)
+### 37. Zacinanie się dźwięku – priorytet wątku dźwięku i dłuższy bufor – ✅ razem z 38 (14.11.2026)
 - **Pliki:** `common/gamemusic.cpp` (zmieniony plik z projektu – podmienić), `game/main.cpp` (zmieniony plik z projektu – podmienić; folder `game/` w głównym katalogu projektu, nie w `common/`)
 - **Przyczyna:** na Androidzie OpenAL miksuje dźwięk (OpenSL ES) we własnym wątku, a ten wątek chodzi ze zwykłym priorytetem – OpenAL próbuje ustawić priorytet czasu rzeczywistego (SCHED_RR), ale Android nie pozwala na to aplikacji. Bufor to 3 porcje po 20 ms (60 ms). Przy wczytywaniu świata wątki robocze zajmują wszystkie rdzenie i wątek dźwięku nie zdąża przygotować kolejnej porcji – przerwa.
 - **Poprawka:**
@@ -303,7 +303,7 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Do sprawdzenia:** czy dźwięki w grze (ciosy, kroki) nie wydają się spóźnione – wtedy zmniejszyć `periods` do 4–5.
 - **Test:** zacinki zostały → poprawka 38.
 
-### 38. Zacinanie się dźwięku – muzyka ładowana w osobnym wątku, też dla domyślnej muzyki OpenGothic – 🧪 (14.11.2026)
+### 38. Zacinanie się dźwięku – muzyka ładowana w osobnym wątku, też dla domyślnej muzyki OpenGothic – ✅ (14.11.2026)
 - **Pliki:** `common/gamemusic.cpp` (zmieniony plik z projektu – podmienić)
 - **Przyczyna:** OpenGothic ma dwa silniki muzyki: „OpenGothic” (domyślny, `soundProviderIndex=0`) i „GothicKit”. Poprawka 36 działała tylko dla GothicKit, a domyślny dalej ładował muzykę motywu (`Resources::loadDxMusic`) w wątku dźwięku – pod blokadą zasobów, którą trzyma wczytywanie świata (im większy mod, tym dłużej). Do tego ekran wczytywania co klatkę zleca motyw `SYS_Loading`, a poprawka 36 ładowała go wtedy od nowa co klatkę.
 - **Poprawka:** oba silniki ładują muzykę nowego motywu w osobnym wątku. Wątek dźwięku zaczyna motyw dopiero, gdy jest załadowany (do tego czasu gra poprzednia muzyka albo cisza – efekty grają dalej). Motyw, który już gra, nie jest ładowany ponownie. Ani wątek gry, ani wątek dźwięku nie czekają na blokadę zasobów.
