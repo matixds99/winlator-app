@@ -55,6 +55,7 @@ Mody w JavaScripcie dla systemu modów projektu borsuczyny (`docs/MODS.md`). Ins
 | Mod | Plik do zainstalowania | Co robi | Poprawka |
 |---|---|---|---|
 | `mods/nb-wisp` | `mods/nb-wisp.zip` | wędrujący ognik od Vatrasa: Shift+F5, przycisk w zakładce „Ognik” menu modów albo komenda `ognik` | 11 |
+| `mods/test-umiejetnosci-broni` | `index.js` do folderu moda „Test umiejętności broni” (podmienić) | test poziomów broni pod NB: procent trafienia jak u nauczyciela, animacje zakłada skrypt NB | 48 |
 
 ---
 

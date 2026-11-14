@@ -374,6 +374,11 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Przy okazji:** brak dźwięków `woosh_01/02.wav`, `inv_open/close.wav` – w logu `Union.vdf` się nie wczytuje („Detected compressed VDF – build ZenKit with ZK_ENABLE_ZIPPED_VDF=ON”). To archiwum pluginu NB z jego zasobami (dźwięki, możliwe że też smugi ciosów).
 - **Diagnostyka:** w `log.txt` linie `[anim] hero overlay +NAZWA` (z `NOT LOADED`, gdy plik animacji się nie wczytał) i `[anim] hero attack NAZWA comb=… comboLen=… hit1h=… overlays: …` – która animacja ciosu jest odtwarzana i z jakimi nakładkami.
 
+### 48. Mod „Test umiejętności broni” przerobiony pod NB – 🧪 (14.11.2026)
+- **Pliki:** `mods/test-umiejetnosci-broni/index.js` (podmienić `index.js` w folderze tego moda; `manifest.json` bez zmian)
+- **Przyczyna:** mod zmieniał tylko poziom talentu (`Npc_SetTalentSkill`), a silnik dokładał zwykłe nakładki `HUMANS_1HST1/ST2`. NB wybiera animacje według procentu trafienia, więc procent zostawał (6%), a nakładki miecza mieszały się z animacją szpady amatora.
+- **Teraz:** przyciski poziomów ustawiają procent (Amator 10%, 30%, 60%, Mistrz 90%) przez `B_RaiseFightTalent` – jak u nauczyciela (procent „prawdziwy” w AIVAR 84–87, % trafienia, poziom talentu, `RX_LastAnim`) – i od razu wołają `RX_ApplyAnim_Weapons(hero, -1)`, więc skrypt NB zakłada właściwe animacje (szpada, szabla, miecz, tarcza, broń dwuręczna…). Pokazuje procent i poziom NB. Wytrzymałość w jednostkach gry (×10, jak pasek i statystyki), kroki ±10/±100. Komenda `tskill` przyjmuje procent (0/1/2 = 10/30/90%).
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).
