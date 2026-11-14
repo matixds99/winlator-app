@@ -349,6 +349,12 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Poprawka:** co 100 ms, gdy `RX_LastAnim_1h/2h` = 0, a talent bohatera jest co najmniej na poziomie wojownika (≥ 30%), wraca na -1 („według talentu”) i ustawia `DoCheckFightSkill1h/2h`; `B_CheckMenuOption` (zaraz, przy schowanej broni) zakłada animacje poziomu talentu i zapisuje poziom (1–3). Działa dla wszystkich typów broni (miecze, szpady, szable, tarcze, dwuręczne, włócznie, kostury, halabardy).
 - **Ograniczenie:** bez szybkiego panelu nie da się wybrać niższego poziomu niż talent (w NB można było) – do zrobienia osobno, jeśli potrzebne.
 
+### 44. Szable (bronie zręczności) miały animacje zwykłego miecza zamiast szabli – 🧪 (14.11.2026)
+- **Pliki:** `common/game/nboptions.h`
+- **Przyczyna:** szabla (np. piracki kordelas – `ITMW_PIRATENSAEBEL`, `EQUIP_1H_02_DEX`) ustawia `EQUIPEDINDEX_DEXSWORD`, a `RX_ApplyAni_1H_DexSword` zakłada animacje szabli (`humans_1hDexST1–3`) tylko gdy `Menu_ReadInt("AST","IsEnabledDexSwordAnims")` ≠ 0 – inaczej przechodzi na zwykły miecz (`humans_1hST1–3`). Plugin czyta tę opcję poza swoim menu z domyślnym 1 (`zCOption::ReadInt`, 0x10280A31), więc w NB zawsze była włączona; w OpenGothic klucza nie było w Gothic.ini → 0.
+- **Poprawka:** `IsEnabledDexSwordAnims = 1` dopisane do domyślnych opcji NB (zapisuje się do Gothic.ini, gdy klucza nie ma).
+- Uwaga: skrypty NB przy mistrzu zakładają `humans_1hDexST2`, a przy 60–89% `humans_1hDexST3` (zamienione w skryptach moda) – tak samo jak w oryginale.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

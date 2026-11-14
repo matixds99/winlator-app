@@ -13,7 +13,7 @@ Te pliki trzeba **dodać**, nie podmieniać. Bez nich build się nie uda.
 
 | Nowy plik | Gdzie go wrzucić | Kto go potrzebuje | Od poprawki |
 |---|---|---|---|
-| `common/game/nboptions.h` | do folderu `common/game/`, obok `gamescript.cpp` | `gamescript.cpp`, `ui/gamemenu.cpp` | 5 |
+| `common/game/nboptions.h` | do folderu `common/game/`, obok `gamescript.cpp` | `gamescript.cpp`, `ui/gamemenu.cpp` | 5, 44 |
 | `common/game/nbiteminfo.h` | do folderu `common/game/`, obok `gamescript.cpp` | `gamescript.cpp` | 12, 13 |
 | `common/game/nbbars.h` | do folderu `common/game/`, obok `gamescript.cpp` | `gamescript.cpp`, `mainwindow.cpp` (pasek wytrzymałości) | 41 |
 | `android/assets/touch-icons/sprint.png` | do folderu `android/assets/touch-icons/`, obok `walk.png` | `utils/androidinput.cpp` (ikona sprintu) | 40 |

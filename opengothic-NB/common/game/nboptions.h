@@ -21,6 +21,9 @@ struct Default {
 // the options of the plugin with their default values (only its own sections: [GAME], [ENGINE]...
 // are the options of the engine, OpenGothic has its own defaults for them)
 inline constexpr Default defaults[] = {
+  // NB fix 44: read by the plugin outside of its menu (zCOption::ReadInt with the default 1, 0x10280A31); without it
+  // RX_ApplyAni_1H_DexSword gives the weapons of dexterity (sabres) the animations of the usual swords
+  {"AST", "IsEnabledDexSwordAnims", 1},
   {"AST", "bToggleDamageAboveHead", 1},
   {"AST", "bToggleDamageShow", 0},
   {"AST", "bToggleShieldBlockShow", 1},
