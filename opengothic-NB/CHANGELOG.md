@@ -366,6 +366,12 @@ Pliki: przy każdej poprawce jest lista plików. **🆕 NOWY PLIK** oznacza plik
 - **Przyczyna:** warunki przedmiotów NB (`C_ITEM.COND_ATR`) wskazują poza zwykłymi atrybutami także zmienne pluginu: `AIVRX_NPC_ATR_BOW` (89), `_SHIELD` (90), `_CROSSBOW` (91), `_STAMINA` (92) – w skryptach 207 przedmiotów wymaga wytrzymałości, 43 łuku, 35 kuszy, 1 tarczy. `Npc::attribute` zwracał 0 dla indeksów ≥ `ATR_MAX`, więc każdy taki warunek był niespełniony.
 - **Poprawka:** dla 89–92 wartość to zmienna NB postaci (`RX_GetNpcVar`); wytrzymałość jest tam trzymana jako `ATR_STAMINA_MAX` (×1, `B_CheckMenuOption` ją synchronizuje), a warunki są ×10 jak wszystko w NB – więc ×10.
 
+### 47. Animacje szpady na poziomie wojownika i mistrza inne niż w oryginale – 🔍 diagnostyka (14.11.2026)
+- **Pliki:** `common/world/objects/npc.cpp`, `common/game/gamescript.cpp`
+- **Z nagrań (Winlator):** amator (`Humans_Pirate`) wygląda jak w oryginale; wojownik (`Humans_Rapier_ST2`) – krótkie cięcia w bok; mistrz (`Humans_Rapier_ST3`) – lewa ręka za plecami, bardzo szybkie pchnięcia. W OpenGothic tego nie ma. W oryginale przy ciosach widać też białe smugi za bronią i błyski.
+- **Uwaga:** zakładka „Umiejętności” narzędzia z menu modów zmienia poziom i zakłada nakładki `HUMANS_1HST1/ST2` – zastępują one nakładki szpady NB, więc test trzeba robić bez niej (poziom ze skryptów, broń założona na nowo).
+- **Diagnostyka:** w `log.txt` linie `[anim] hero overlay +NAZWA` (z `NOT LOADED`, gdy plik animacji się nie wczytał) i `[anim] hero attack NAZWA comb=… comboLen=… hit1h=… overlays: …` – która animacja ciosu jest odtwarzana i z jakimi nakładkami.
+
 ## Do zrobienia
 
 - [ ] Czarny goblin nie atakuje, stoi w miejscu (14.11.2026). Z logu: wrogi (attitude=0), czuje bohatera (sense=5 przy ~1100), ale zostaje w `ZS_MM_RTN_ROAM` bez celu – reakcja na wroga (`B_MM_AssessEnemy`) nie przełącza go na atak; raz pojawia się `ZS_MM_ThreatenEnemy`. `RX_GobboClan` (niezaimplementowane) jest tylko w `AI_OnDead_Gobbo_Black_Clan` – przy śmierci, nie przy ataku. Do zbadania z włączonymi śladami `B_MM_AssessEnemy` (więcej niż 3 na komunikat).

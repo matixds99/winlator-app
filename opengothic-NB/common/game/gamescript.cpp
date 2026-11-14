@@ -3559,6 +3559,9 @@ void GameScript::mdl_applyoverlaymds(std::shared_ptr<zenkit::INpc> npcRef, std::
     auto skelet = Resources::loadSkeleton(overlayname);
     npc->addOverlay(skelet,0);
     Log::d("Mdl_ApplyOverlayMds: ", overlayname, skelet==nullptr ? " (not found)" : "");
+    // NB diagnostics (fix 47): an overlay of the hero that does not load leaves him the animations of the base
+    if(npc->isPlayer())
+      Log::i("[anim] hero overlay +",overlayname,skelet==nullptr ? " NOT LOADED" : "");
     }
   }
 

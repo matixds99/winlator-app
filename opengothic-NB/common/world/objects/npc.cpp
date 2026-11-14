@@ -4747,7 +4747,20 @@ bool Npc::doAttack(Anim anim, BodyState bs) {
   const auto wlk = walkMode();
   visual.setAnimRotate(*this,0);
   if(auto sq = visual.continueCombo(*this,anim,bs,weaponSt,wlk)) {
-    (void)sq;
+    // NB diagnostics (fix 47): which attack the hero plays and with which overlays of the animations (the rapier
+    // of the fighter and of the master look otherwise than in the original). Once for every new combination.
+    if(isPlayer()) {
+      static std::string lastAtk;
+      std::string ov;
+      for(auto& n:visual.overlayNames())
+        ov += n + " ";
+      const std::string key = sq->name + "|" + ov;
+      if(key!=lastAtk) {
+        lastAtk = key;
+        Log::i("[anim] hero attack ",sq->name," comb=",int(sq->comb.size())," comboLen=",int(visual.comboLength()),
+               " hit1h=",hnpc->hitchance[TALENT_1H]," overlays: ",ov);
+        }
+      }
     // implAniWait(uint64_t(sq->atkTotalTime(visual.comboLength())+1));
     return true;
     }
